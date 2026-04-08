@@ -39,8 +39,8 @@ class ComponentPlacer:
         self,
         design: DesignResult,
         output_path: Path,
-        board_width_mm: float = 30.0,
-        board_height_mm: float = 25.0,
+        board_width_mm: float | None = None,
+        board_height_mm: float | None = None,
     ) -> Path:
         """Create a .kicad_pcb with placed footprints.
 
@@ -53,6 +53,13 @@ class ComponentPlacer:
             )
 
         board = pcbnew.BOARD()
+
+        # Auto-size board based on component count
+        n = len(design.components)
+        if board_width_mm is None:
+            board_width_mm = max(20.0, 10.0 + n * 5.0)
+        if board_height_mm is None:
+            board_height_mm = max(15.0, 8.0 + n * 4.0)
 
         # Load and place footprints
         positions = self._calculate_positions(design, board_width_mm, board_height_mm)
