@@ -66,6 +66,7 @@ class ConstraintEngine:
         violations.extend(self._check_single_pin_nets(design))
         violations.extend(self._check_trace_width_requirements(design))
         violations.extend(self._check_duplicate_references(design))
+        violations.extend(self._check_power_nets_exist(design))
         return tuple(violations)
 
     def _check_component_count(self, design: DesignResult) -> list[ConstraintViolation]:
@@ -196,6 +197,28 @@ class ConstraintEngine:
                         f"For {current}A: minimum trace width {matching_rule['min_width_mm']}mm, "
                         f"recommended {matching_rule['recommended_mm']}mm "
                         f"(1oz copper, {rules.get('temperature_rise_c', 10)}C rise)"
+                    ),
+                )
+            )
+
+        return violations
+
+    def _check_power_nets_exist(self, design: DesignResult) -> list[ConstraintViolation]:
+        """Verify that essential power nets (VIN, VOUT/output, GND) exist."""
+        violations: list[ConstraintViolation] = []
+        net_names = {n.name for n in design.nets}
+
+        has_ground = any(
+            name in net_names for name in ("GND", "VSS", "GROUND", "AGND", "DGND")
+        )
+        if not has_ground and len(design.components) > 0:
+            violations.append(
+                ConstraintViolation(
+                    rule="ground_net_missing",
+                    severity=Severity.WARNING,
+                    message=(
+                        "No ground net (GND/VSS) found — "
+                        "most circuits require a ground reference"
                     ),
                 )
             )

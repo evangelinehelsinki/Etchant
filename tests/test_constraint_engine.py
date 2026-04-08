@@ -76,6 +76,7 @@ class TestValidateDesign:
             ),
             nets=(
                 NetSpec(name="VIN", connections=(("C1", "1"), ("U1", "IN"))),
+                NetSpec(name="GND", connections=(("C1", "2"), ("U1", "GND"))),
             ),
             placement_constraints=(
                 PlacementConstraint(
@@ -266,6 +267,58 @@ class TestSinglePinNetDetection:
         dangling = [v for v in violations if v.rule == "single_pin_net"]
         assert len(dangling) == 1
         assert "DANGLING" in dangling[0].message
+
+
+class TestPowerNets:
+    def test_missing_ground_warning(
+        self, engine: ConstraintEngine, lm2596_spec: CircuitSpec
+    ) -> None:
+        design = DesignResult(
+            spec=lm2596_spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+            ),
+            nets=(
+                NetSpec(name="VIN", connections=(("U1", "IN"),)),
+            ),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        assert any(v.rule == "ground_net_missing" for v in violations)
+
+    def test_gnd_net_passes(
+        self, engine: ConstraintEngine, lm2596_spec: CircuitSpec
+    ) -> None:
+        design = DesignResult(
+            spec=lm2596_spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+            ),
+            nets=(
+                NetSpec(name="GND", connections=(("U1", "GND"),)),
+            ),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        assert not any(v.rule == "ground_net_missing" for v in violations)
 
 
 class TestDuplicateReferences:
