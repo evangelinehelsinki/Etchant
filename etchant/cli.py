@@ -180,6 +180,44 @@ def import_parts(csv_file: str, db_path: str) -> None:
     db.close()
 
 
+@cli.command()
+@click.argument("request")
+@click.option("--api-key", envvar="ANTHROPIC_API_KEY", help="Anthropic API key")
+@click.option(
+    "--model", default="claude-sonnet-4-20250514", help="Claude model to use",
+)
+@click.option("--output-dir", "-o", type=click.Path(), default="./output")
+def agent(request: str, api_key: str | None, model: str, output_dir: str) -> None:
+    """Run the AI agent to design a circuit from natural language."""
+    if not api_key:
+        raise click.ClickException(
+            "API key required. Set ANTHROPIC_API_KEY env var or pass --api-key"
+        )
+
+    from etchant.agents.agent import EtchantAgent
+
+    constraints_dir = Path(__file__).parent.parent / "constraints"
+    etch_agent = EtchantAgent(
+        api_key=api_key,
+        constraints_dir=constraints_dir,
+        output_dir=Path(output_dir),
+        model=model,
+    )
+
+    click.echo(f"Request: {request}")
+    click.echo("Processing...")
+
+    result = etch_agent.design(request)
+
+    click.echo(f"\nAgent response ({result['turns']} turn(s)):")
+    click.echo(result["response"])
+
+    if result["tool_calls"]:
+        click.echo(f"\nTool calls: {len(result['tool_calls'])}")
+        for tc in result["tool_calls"]:
+            click.echo(f"  {tc['tool']}({tc['input']})")
+
+
 # Backwards-compatible entry point for pyproject.toml [project.scripts]
 def main() -> None:
     cli()

@@ -17,6 +17,9 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML>=6.0",
 ]
+agent = [
+    "anthropic>=0.40",
+]
 kicad = [
     "pyspice>=1.5",
 ]
