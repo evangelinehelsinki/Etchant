@@ -142,3 +142,58 @@ def has_pin_mapping(ic_symbol: str) -> bool:
 def list_mapped_ics() -> list[str]:
     """Return all ICs with verified pin mappings."""
     return sorted(_PIN_MAPS.keys())
+
+
+# Pin name -> footprint pad number mapping for net assignment during placement.
+# Passives (R, C, L, D) always use pad "1" and "2".
+# ICs vary per package — verified against KiCad 9 footprint libraries.
+_PAD_NUMBER_MAPS: dict[str, dict[str, str]] = {
+    "SOT-223-3_TabPin2": {
+        "GND": "1",
+        "VO": "2",
+        "VOUT": "2",
+        "VI": "3",
+        "VIN": "3",
+    },
+    "TO-263-5_TabPin3": {
+        "VIN": "1",
+        "OUT": "2",
+        "SW": "2",
+        "GND": "3",
+        "FB": "4",
+        "~{ON}/OFF": "5",
+        "ON_OFF": "5",
+    },
+    # SOT-23-6 (common for modern buck converters like TPS563200)
+    "SOT-23-6": {
+        "BST": "1",
+        "GND": "2",
+        "PGND": "2",
+        "FB": "3",
+        "EN": "4",
+        "VIN": "5",
+        "SW": "6",
+    },
+}
+
+
+def get_pad_number(
+    footprint_name: str,
+    pin_name: str,
+) -> str | None:
+    """Map a pin name to its footprint pad number.
+
+    Args:
+        footprint_name: Footprint name (e.g., "SOT-223-3_TabPin2")
+        pin_name: Pin name (symbol-level, e.g., "VI", "GND")
+
+    Returns:
+        Pad number string (e.g., "1", "2") or None if not mapped.
+    """
+    # Extract just the footprint name from "Library:Name" format
+    if ":" in footprint_name:
+        footprint_name = footprint_name.split(":")[-1]
+
+    if footprint_name in _PAD_NUMBER_MAPS:
+        return _PAD_NUMBER_MAPS[footprint_name].get(pin_name)
+    return None

@@ -108,7 +108,9 @@ class ComponentPlacer:
 
     def _assign_nets(self, board: object, design: DesignResult) -> None:
         """Assign net names to footprint pads based on design connectivity."""
-        # Build a map: (component_ref, pin) -> net_name
+        from etchant.kicad.pin_mapping import get_pad_number, get_pin_name
+
+        # Build a map: (component_ref, pin_name) -> net_name
         pin_nets: dict[tuple[str, str], str] = {}
         for net_spec in design.nets:
             for ref, pin in net_spec.connections:
@@ -122,19 +124,45 @@ class ComponentPlacer:
             board.Add(ni)
             net_items[net_name] = ni
 
+        # Build component lookup
+        comp_by_ref = {c.reference: c for c in design.components}
+
         # Assign nets to pads
+        assigned = 0
         for fp in board.GetFootprints():
             ref = fp.GetReference()
+            comp = comp_by_ref.get(ref)
+            if comp is None:
+                continue
+
             for pad in fp.Pads():
-                pad_num = pad.GetNumber()
-                # Try matching by pad number (most common for passives)
-                key = (ref, str(pad_num))
+                pad_num = str(pad.GetNumber())
+
+                # Try direct pad number match (works for passives: "1", "2")
+                key = (ref, pad_num)
                 if key in pin_nets:
-                    net_name = pin_nets[key]
-                    ni = net_items.get(net_name)
+                    ni = net_items.get(pin_nets[key])
                     if ni:
                         pad.SetNet(ni)
-                        logger.debug("Assigned %s.%s -> %s", ref, pad_num, net_name)
+                        assigned += 1
+                        continue
+
+                # For ICs: find which pin name maps to this pad number
+                if comp.category.name == "IC":
+                    for (r, pin_name), net_name in pin_nets.items():
+                        if r != ref:
+                            continue
+                        # Map generic pin -> KiCad pin -> pad number
+                        kicad_pin = get_pin_name(comp.kicad_symbol, pin_name)
+                        expected_pad = get_pad_number(comp.footprint, kicad_pin)
+                        if expected_pad == pad_num:
+                            ni = net_items.get(net_name)
+                            if ni:
+                                pad.SetNet(ni)
+                                assigned += 1
+                                break
+
+        logger.info("Assigned %d pad-net connections", assigned)
 
     def _load_footprint(self, board: object, footprint_str: str) -> object | None:
         """Load a footprint from KiCad libraries."""
