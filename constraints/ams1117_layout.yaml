@@ -6,7 +6,7 @@ pinout:
   1: {name: "GND", type: "ground"}
   2: {name: "VO", type: "output"}
   3: {name: "VI", type: "power_in"}
-  tab: {name: "VO", type: "output", notes: "Tab connected to output pin 2"}
+  tab: {name: "VO", type: "output", notes: "Tab is VOUT (not GND!) — connect copper pour to output, not ground"}
 
 placement_constraints:
   - component: "C_in"
