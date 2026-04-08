@@ -6,6 +6,7 @@ The engine is generic; constraints are swappable per manufacturer or IC.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import Any
 import yaml
 
 from etchant.core.models import DesignResult
+
+logger = logging.getLogger(__name__)
 
 
 class Severity(Enum):
@@ -37,14 +40,17 @@ class ConstraintEngine:
 
     def __init__(self, constraints_dir: Path) -> None:
         self._constraints_dir = constraints_dir
+        self._design_rules: dict[str, Any] | None = None
 
     def load_manufacturing_rules(self) -> dict[str, Any]:
         path = self._constraints_dir / "jlcpcb_manufacturing.yaml"
         return self._load_yaml(path)
 
     def load_design_rules(self) -> dict[str, Any]:
-        path = self._constraints_dir / "design_rules.yaml"
-        return self._load_yaml(path)
+        if self._design_rules is None:
+            path = self._constraints_dir / "design_rules.yaml"
+            self._design_rules = self._load_yaml(path)
+        return self._design_rules
 
     def load_layout_rules(self, ic_name: str) -> dict[str, Any]:
         filename = f"{ic_name.lower()}_layout.yaml"
@@ -52,11 +58,13 @@ class ConstraintEngine:
         return self._load_yaml(path)
 
     def validate_design(self, design: DesignResult) -> tuple[ConstraintViolation, ...]:
-        """Validate a design against all applicable constraints."""
+        """Validate a design against structural and YAML-backed rules."""
         violations: list[ConstraintViolation] = []
         violations.extend(self._check_component_count(design))
         violations.extend(self._check_placement_constraints(design))
         violations.extend(self._check_net_connectivity(design))
+        violations.extend(self._check_single_pin_nets(design))
+        violations.extend(self._check_trace_width_requirements(design))
         return tuple(violations)
 
     def _check_component_count(self, design: DesignResult) -> list[ConstraintViolation]:
@@ -120,6 +128,77 @@ class ConstraintEngine:
                             component_ref=ref,
                         )
                     )
+        return violations
+
+    def _check_single_pin_nets(self, design: DesignResult) -> list[ConstraintViolation]:
+        """Flag nets with only one connection (likely unconnected pins)."""
+        violations: list[ConstraintViolation] = []
+        for net in design.nets:
+            if len(net.connections) < 2:
+                violations.append(
+                    ConstraintViolation(
+                        rule="single_pin_net",
+                        severity=Severity.WARNING,
+                        message=(
+                            f"Net '{net.name}' has only {len(net.connections)} connection(s) "
+                            f"— likely a dangling pin"
+                        ),
+                    )
+                )
+        return violations
+
+    def _check_trace_width_requirements(
+        self, design: DesignResult
+    ) -> list[ConstraintViolation]:
+        """Check trace width requirements based on output current and design_rules.yaml."""
+        violations: list[ConstraintViolation] = []
+
+        try:
+            rules = self.load_design_rules()
+        except FileNotFoundError:
+            logger.debug("design_rules.yaml not found, skipping trace width check")
+            return violations
+
+        trace_rules = rules.get("trace_width", [])
+        if not trace_rules:
+            return violations
+
+        current = design.spec.output_current
+        matching_rule = None
+        for rule in trace_rules:
+            if rule["current_a"] >= current:
+                matching_rule = rule
+                break
+
+        if matching_rule is None:
+            # Current exceeds all rules — use the highest
+            matching_rule = trace_rules[-1]
+            violations.append(
+                ConstraintViolation(
+                    rule="trace_width_recommendation",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"Output current {current}A exceeds highest trace width rule "
+                        f"({matching_rule['current_a']}A). "
+                        f"Minimum trace width: {matching_rule['min_width_mm']}mm, "
+                        f"recommended: {matching_rule['recommended_mm']}mm. "
+                        f"Verify trace width is adequate for {current}A."
+                    ),
+                )
+            )
+        else:
+            violations.append(
+                ConstraintViolation(
+                    rule="trace_width_recommendation",
+                    severity=Severity.INFO,
+                    message=(
+                        f"For {current}A: minimum trace width {matching_rule['min_width_mm']}mm, "
+                        f"recommended {matching_rule['recommended_mm']}mm "
+                        f"(1oz copper, {rules.get('temperature_rise_c', 10)}C rise)"
+                    ),
+                )
+            )
+
         return violations
 
     def _load_yaml(self, path: Path) -> dict[str, Any]:

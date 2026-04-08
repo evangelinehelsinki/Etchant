@@ -12,7 +12,7 @@ class TestCli:
         runner = CliRunner()
         result = runner.invoke(main, ["--help"])
         assert result.exit_code == 0
-        assert "LM2596" in result.output
+        assert "power supply circuit" in result.output
 
     def test_default_invocation(self) -> None:
         runner = CliRunner()

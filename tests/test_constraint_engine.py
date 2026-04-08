@@ -88,11 +88,12 @@ class TestValidateDesign:
             design_notes=("test note",),
         )
 
-    def test_valid_design_no_violations(
+    def test_valid_design_no_errors_or_warnings(
         self, engine: ConstraintEngine, valid_design: DesignResult
     ) -> None:
         violations = engine.validate_design(valid_design)
-        assert violations == ()
+        errors_warnings = [v for v in violations if v.severity != Severity.INFO]
+        assert errors_warnings == []
 
     def test_empty_design_has_violations(
         self, engine: ConstraintEngine, lm2596_spec: CircuitSpec
@@ -162,6 +163,109 @@ class TestValidateDesign:
         )
         violations = engine.validate_design(design)
         assert any(v.rule == "net_component_exists" for v in violations)
+
+
+class TestTraceWidthValidation:
+    def test_high_current_warns_about_trace_width(
+        self, engine: ConstraintEngine
+    ) -> None:
+        """A 5A design should get a warning about trace width requirements."""
+        spec = CircuitSpec(
+            name="test",
+            topology="buck_converter",
+            input_voltage=12.0,
+            output_voltage=5.0,
+            output_current=5.0,
+            description="test",
+        )
+        design = DesignResult(
+            spec=spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+            ),
+            nets=(
+                NetSpec(name="VIN", connections=(("U1", "IN"),)),
+            ),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        trace_violations = [v for v in violations if v.rule == "trace_width_recommendation"]
+        assert len(trace_violations) > 0
+        assert any("5.0A" in v.message for v in trace_violations)
+
+    def test_normal_current_gets_info(
+        self, engine: ConstraintEngine
+    ) -> None:
+        """A 2A design should still get an info-level trace width note."""
+        spec = CircuitSpec(
+            name="test",
+            topology="buck_converter",
+            input_voltage=12.0,
+            output_voltage=5.0,
+            output_current=2.0,
+            description="test",
+        )
+        design = DesignResult(
+            spec=spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+            ),
+            nets=(
+                NetSpec(name="VIN", connections=(("U1", "IN"),)),
+            ),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        trace_info = [v for v in violations if v.rule == "trace_width_recommendation"]
+        assert len(trace_info) > 0
+
+
+class TestSinglePinNetDetection:
+    def test_single_pin_net_warning(
+        self, engine: ConstraintEngine, lm2596_spec: CircuitSpec
+    ) -> None:
+        """A net with only one connection should produce a warning."""
+        design = DesignResult(
+            spec=lm2596_spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+            ),
+            nets=(
+                NetSpec(name="DANGLING", connections=(("U1", "IN"),)),
+            ),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        dangling = [v for v in violations if v.rule == "single_pin_net"]
+        assert len(dangling) == 1
+        assert "DANGLING" in dangling[0].message
 
 
 class TestConstraintViolation:
