@@ -22,11 +22,11 @@ class TestComponentPlacer:
         placer = ComponentPlacer()
         positions = placer._calculate_positions(design, 30.0, 25.0)
 
-        # IC should be in center
+        # IC should be in center (page offset 100 + board center)
         assert "U1" in positions
         u1_x, u1_y, _ = positions["U1"]
-        assert 14 < u1_x < 16  # ~center of 30mm
-        assert 11 < u1_y < 14  # ~center of 25mm
+        assert 110 < u1_x < 120  # ~100 + center of board width
+        assert 108 < u1_y < 118  # ~100 + center of board height
 
         # All components should have positions
         for comp in design.components:

@@ -94,6 +94,9 @@ class ComponentPlacer:
         # Add board outline
         self._add_board_outline(board, board_width_mm, board_height_mm)
 
+        # Add ground plane (copper pour on GND net)
+        self._add_ground_plane(board, board_width_mm, board_height_mm)
+
         # Save
         output_path.parent.mkdir(parents=True, exist_ok=True)
         board.Save(str(output_path))
@@ -172,8 +175,12 @@ class ComponentPlacer:
             x = center_x + distance * math.cos(rad)
             y = center_y + distance * math.sin(rad)
 
-            x = max(_PAGE_OFFSET_X + _BOARD_MARGIN, min(_PAGE_OFFSET_X + board_w - _BOARD_MARGIN, x))
-            y = max(_PAGE_OFFSET_Y + _BOARD_MARGIN, min(_PAGE_OFFSET_Y + board_h - _BOARD_MARGIN, y))
+            x_min = _PAGE_OFFSET_X + _BOARD_MARGIN
+            x_max = _PAGE_OFFSET_X + board_w - _BOARD_MARGIN
+            y_min = _PAGE_OFFSET_Y + _BOARD_MARGIN
+            y_max = _PAGE_OFFSET_Y + board_h - _BOARD_MARGIN
+            x = max(x_min, min(x_max, x))
+            y = max(y_min, min(y_max, y))
 
             rotation = 0.0
             if comp.category in (ComponentCategory.CAPACITOR, ComponentCategory.RESISTOR):
@@ -183,6 +190,44 @@ class ComponentPlacer:
             current_angle += angle_step
 
         return positions
+
+    def _add_ground_plane(
+        self, board: object, width_mm: float, height_mm: float
+    ) -> None:
+        """Add a copper pour zone on the GND net covering the entire board."""
+        # Find or create GND net
+        gnd_net = board.GetNetInfo().GetNetItem("GND")
+        if gnd_net is None:
+            gnd_net = pcbnew.NETINFO_ITEM(board, "GND")
+            board.Add(gnd_net)
+
+        zone = pcbnew.ZONE(board)
+        zone.SetLayer(pcbnew.B_Cu)  # Ground plane on back copper
+        zone.SetNetCode(gnd_net.GetNetCode())
+        zone.SetZoneName("GND")
+
+        # Zone corners with margin
+        m = _BOARD_MARGIN * 0.5
+        corners = [
+            (_PAGE_OFFSET_X - m, _PAGE_OFFSET_Y - m),
+            (_PAGE_OFFSET_X + width_mm + m, _PAGE_OFFSET_Y - m),
+            (_PAGE_OFFSET_X + width_mm + m, _PAGE_OFFSET_Y + height_mm + m),
+            (_PAGE_OFFSET_X - m, _PAGE_OFFSET_Y + height_mm + m),
+        ]
+
+        outline = zone.Outline()
+        outline.NewOutline()
+        for x, y in corners:
+            outline.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
+
+        # Zone settings
+        zone.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
+        zone.SetMinThickness(pcbnew.FromMM(0.2))
+
+        board.Add(zone)
+
+        # Note: zone fill is deferred — KiCad fills automatically when opened
+        logger.info("Added GND ground plane zone on B.Cu (unfilled, fill on open)")
 
     def _add_board_outline(
         self, board: object, width_mm: float, height_mm: float
