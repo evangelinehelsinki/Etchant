@@ -226,16 +226,42 @@ def seed_parts(db_path: str) -> None:
 
 @cli.command()
 @click.argument("request")
-@click.option("--api-key", envvar="ANTHROPIC_API_KEY", help="Anthropic API key")
+@click.option("--api-key", envvar="OPENROUTER_API_KEY", help="API key (env: OPENROUTER_API_KEY)")
 @click.option(
-    "--model", default="claude-sonnet-4-6", help="Claude model to use",
+    "--model", default=None, help="Model ID (default: qwen/qwen3-235b-a22b)",
+)
+@click.option(
+    "--base-url", default=None, help="API base URL (default: OpenRouter)",
+)
+@click.option(
+    "--provider", type=click.Choice(["openai", "anthropic"]),
+    default="openai", help="API provider format",
 )
 @click.option("--output-dir", "-o", type=click.Path(), default="./output")
-def agent(request: str, api_key: str | None, model: str, output_dir: str) -> None:
-    """Run the AI agent to design a circuit from natural language."""
+def agent(
+    request: str,
+    api_key: str | None,
+    model: str | None,
+    base_url: str | None,
+    provider: str,
+    output_dir: str,
+) -> None:
+    """Run the AI agent to design a circuit from natural language.
+
+    Uses OpenRouter by default (set OPENROUTER_API_KEY).
+    For Anthropic: --provider anthropic (set ANTHROPIC_API_KEY).
+    """
+    if not api_key:
+        # Try ANTHROPIC_API_KEY as fallback
+        import os
+
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key and provider == "openai":
+            provider = "anthropic"
+
     if not api_key:
         raise click.ClickException(
-            "API key required. Set ANTHROPIC_API_KEY env var or pass --api-key"
+            "API key required. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY env var"
         )
 
     from etchant.agents.agent import EtchantAgent
@@ -243,12 +269,15 @@ def agent(request: str, api_key: str | None, model: str, output_dir: str) -> Non
     constraints_dir = Path(__file__).parent.parent / "constraints"
     etch_agent = EtchantAgent(
         api_key=api_key,
+        base_url=base_url,
+        model=model,
+        provider=provider,
         constraints_dir=constraints_dir,
         output_dir=Path(output_dir),
-        model=model,
     )
 
     click.echo(f"Request: {request}")
+    click.echo(f"Model: {etch_agent._model}")
     click.echo("Processing...")
 
     result = etch_agent.design(request)
