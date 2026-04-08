@@ -155,6 +155,41 @@ def topologies() -> None:
 
 
 @cli.command()
+@click.argument("pcb_file", type=click.Path(exists=True))
+@click.option("--format", "fmt", type=click.Choice(["json", "report"]), default="report")
+def drc(pcb_file: str, fmt: str) -> None:
+    """Run KiCad Design Rules Check on a .kicad_pcb file."""
+    import json
+    import subprocess
+
+    result = subprocess.run(
+        [
+            "kicad-cli", "pcb", "drc",
+            "--format", fmt,
+            "--severity-all",
+            "--output", "/dev/stdout",
+            pcb_file,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        click.echo(f"DRC failed: {result.stderr}")
+        raise SystemExit(1)
+
+    click.echo(result.stderr.strip())  # kicad-cli prints summary to stderr
+
+    if fmt == "json":
+        data = json.loads(result.stdout)
+        violations = len(data.get("violations", []))
+        unconnected = len(data.get("unconnected_items", []))
+        click.echo(f"Violations: {violations}, Unconnected: {unconnected}")
+    else:
+        click.echo(result.stdout)
+
+
+@cli.command()
 @click.argument("design_a", type=click.Path(exists=True))
 @click.argument("design_b", type=click.Path(exists=True))
 def compare(design_a: str, design_b: str) -> None:
