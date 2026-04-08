@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Type checking
+.mypy_cache/
+.pytype/
+
+# Linting
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.zed/
+
+# KiCad local state
+*.kicad_prl
+*-backups/
+fp-info-cache
+*.kicad_bak
+*.kicad_lck
+
+# Generated outputs
+output/
+gerbers/
+*.net
+
+# SKiDL artifacts
+*.erc
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

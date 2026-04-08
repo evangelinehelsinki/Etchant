@@ -1,0 +1,46 @@
+manufacturer: JLCPCB
+last_updated: "2026-04-01"
+
+capabilities:
+  layers:
+    min: 1
+    max: 20
+    standard: [1, 2, 4, 6]
+
+  board:
+    min_size_mm: [10, 10]
+    max_size_mm: [500, 500]
+    thickness_mm: [0.4, 0.6, 0.8, 1.0, 1.2, 1.6, 2.0]
+    default_thickness_mm: 1.6
+
+  traces:
+    min_width_mm: 0.127
+    min_spacing_mm: 0.127
+    min_width_advanced_mm: 0.089
+    min_spacing_advanced_mm: 0.089
+
+  copper:
+    outer_weight_oz: [1, 2]
+    inner_weight_oz: [0.5, 1]
+    default_weight_oz: 1
+
+  drill:
+    min_hole_mm: 0.2
+    min_via_mm: 0.3
+    min_annular_ring_mm: 0.13
+
+  solder_mask:
+    min_dam_mm: 0.1
+    colors: ["green", "red", "yellow", "blue", "white", "black", "purple"]
+    default_color: "green"
+
+  silkscreen:
+    min_width_mm: 0.15
+    min_height_mm: 0.8
+    colors: ["white", "black"]
+
+  assembly:
+    smt_sides: ["top", "bottom", "both"]
+    min_component_spacing_mm: 0.2
+    basic_parts_setup_fee_usd: 0.0
+    extended_parts_setup_fee_usd: 3.0

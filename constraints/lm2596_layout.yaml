@@ -1,0 +1,62 @@
+ic: LM2596
+package: TO-263-5
+datasheet: "TI SNVS124F"
+switching_frequency_khz: 150
+
+pinout:
+  1: {name: "IN", type: "power_in"}
+  2: {name: "OUT", type: "switch_out"}
+  3: {name: "GND", type: "ground", thermal_pad: true}
+  4: {name: "FB", type: "feedback"}
+  5: {name: "ON_OFF", type: "control"}
+
+placement_constraints:
+  - component: "C_in"
+    relative_to: "IC"
+    max_distance_mm: 20
+    preferred_distance_mm: 5
+    notes: "Input capacitor must be close to IN and GND pins"
+
+  - component: "D1"
+    relative_to: "IC"
+    max_distance_mm: 15
+    preferred_distance_mm: 5
+    notes: "Catch diode must minimize loop area with IC"
+
+  - component: "C_out"
+    relative_to: "load"
+    max_distance_mm: 30
+    preferred_distance_mm: 10
+    notes: "Output capacitor close to load connection"
+
+  - component: "L1"
+    relative_to: "IC"
+    max_distance_mm: 25
+    preferred_distance_mm: 10
+    notes: "Inductor between OUT pin and output capacitor"
+
+routing_rules:
+  power_trace_min_width_mm: 0.5
+  ground_plane: true
+  star_ground_at_ic: true
+  sensitive_traces:
+    - net: "FB"
+      keep_away_from: ["L1", "D1"]
+      max_length_mm: 30
+      notes: "Route feedback away from noisy switching node"
+
+thermal:
+  ground_pad_vias: 4
+  via_diameter_mm: 0.6
+  copper_pour_under_ic: true
+
+reference_design:
+  input_voltage_range_v: [7.0, 40.0]
+  fixed_output_variants_v: [3.3, 5.0, 12.0]
+  max_output_current_a: 2.0
+  components:
+    C_in: {value: "680uF", voltage_rating: "25V", type: "electrolytic", esr: "low"}
+    C_out: {value: "220uF", voltage_rating: "10V", type: "electrolytic", esr: "low"}
+    L1: {value: "33uH", saturation_current: "3A", dcr_max_ohm: 0.1}
+    D1: {value: "1N5824", type: "schottky", voltage_rating: "40V", current_rating: "3A"}
+    C_ff: {value: "100nF", type: "ceramic", optional: true, notes: "Feedforward for transient response"}
