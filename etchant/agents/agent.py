@@ -49,9 +49,14 @@ When the user's requirements are ambiguous, ask clarifying questions.
 For noise-sensitive applications, recommend LDO regulators.
 For high-efficiency or high-current needs, recommend buck converters."""
 
-# Default model for testing — cheap, good at tool use
-DEFAULT_MODEL = "qwen/qwen3-235b-a22b"
+# Default model for testing — free, designed for agentic tool use
+DEFAULT_MODEL = "openai/gpt-oss-120b:free"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+
+# Good alternatives (update benchmark to test these):
+# "meta-llama/llama-3.3-70b-instruct:free"  — free, solid structured output
+# "deepseek/deepseek-chat-v3-0324"           — cheap, strong tool use
+# "qwen/qwen3-235b-a22b"                    — large, good reasoning
 
 
 class EtchantAgent:

@@ -6,9 +6,14 @@ Tests each model against a set of standard prompts and grades them on:
 - Response quality (did the final answer make sense?)
 - Cost per query
 
+Default models to benchmark (all free or cheap via OpenRouter):
+- openai/gpt-oss-120b:free       (free, agentic-optimized)
+- meta-llama/llama-3.3-70b-instruct:free  (free, Meta flagship)
+- deepseek/deepseek-chat-v3-0324 (cheap, strong tool use)
+- qwen/qwen3-235b-a22b           (large, good reasoning)
+
 Usage:
-    python -m etchant.agents.benchmark --api-key sk-or-... \
-        --models qwen/qwen3-235b-a22b,deepseek/deepseek-chat-v3-0324
+    python -m etchant.agents.benchmark --api-key sk-or-...
 """
 
 from __future__ import annotations
@@ -22,6 +27,13 @@ from typing import Any
 from etchant.agents.agent import EtchantAgent
 
 logger = logging.getLogger(__name__)
+
+BENCHMARK_MODELS = [
+    "openai/gpt-oss-120b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "deepseek/deepseek-chat-v3-0324",
+    "qwen/qwen3-235b-a22b",
+]
 
 # Standard test prompts with expected tool calls
 _TEST_CASES: tuple[dict[str, Any], ...] = (
