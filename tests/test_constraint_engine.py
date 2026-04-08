@@ -268,6 +268,73 @@ class TestSinglePinNetDetection:
         assert "DANGLING" in dangling[0].message
 
 
+class TestDuplicateReferences:
+    def test_duplicate_reference_detected(
+        self, engine: ConstraintEngine, lm2596_spec: CircuitSpec
+    ) -> None:
+        design = DesignResult(
+            spec=lm2596_spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test2",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="duplicate",
+                ),
+            ),
+            nets=(),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        assert any(v.rule == "duplicate_reference" for v in violations)
+
+    def test_no_duplicates_passes(
+        self, engine: ConstraintEngine, lm2596_spec: CircuitSpec
+    ) -> None:
+        design = DesignResult(
+            spec=lm2596_spec,
+            components=(
+                ComponentSpec(
+                    reference="U1",
+                    category=ComponentCategory.IC,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+                ComponentSpec(
+                    reference="C1",
+                    category=ComponentCategory.CAPACITOR,
+                    value="test",
+                    footprint="test",
+                    kicad_library="test",
+                    kicad_symbol="test",
+                    description="test",
+                ),
+            ),
+            nets=(),
+            placement_constraints=(),
+            design_notes=(),
+        )
+        violations = engine.validate_design(design)
+        dup_violations = [v for v in violations if v.rule == "duplicate_reference"]
+        assert len(dup_violations) == 0
+
+
 class TestConstraintViolation:
     def test_frozen(self) -> None:
         v = ConstraintViolation(

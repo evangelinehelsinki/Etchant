@@ -65,6 +65,7 @@ class ConstraintEngine:
         violations.extend(self._check_net_connectivity(design))
         violations.extend(self._check_single_pin_nets(design))
         violations.extend(self._check_trace_width_requirements(design))
+        violations.extend(self._check_duplicate_references(design))
         return tuple(violations)
 
     def _check_component_count(self, design: DesignResult) -> list[ConstraintViolation]:
@@ -199,6 +200,23 @@ class ConstraintEngine:
                 )
             )
 
+        return violations
+
+    def _check_duplicate_references(self, design: DesignResult) -> list[ConstraintViolation]:
+        """Flag duplicate component references."""
+        violations: list[ConstraintViolation] = []
+        seen: set[str] = set()
+        for comp in design.components:
+            if comp.reference in seen:
+                violations.append(
+                    ConstraintViolation(
+                        rule="duplicate_reference",
+                        severity=Severity.ERROR,
+                        message=f"Duplicate component reference '{comp.reference}'",
+                        component_ref=comp.reference,
+                    )
+                )
+            seen.add(comp.reference)
         return violations
 
     def _load_yaml(self, path: Path) -> dict[str, Any]:

@@ -160,6 +160,35 @@ def compare(design_a: str, design_b: str) -> None:
         raise SystemExit(1)
 
 
+@cli.command()
+@click.option("--input-voltage", "-vin", type=float, required=True, help="Input voltage (V)")
+@click.option("--output-voltage", "-vout", type=float, required=True, help="Output voltage (V)")
+@click.option("--current", "-i", type=float, required=True, help="Output current (A)")
+@click.option(
+    "--priority", "-p", type=click.Choice(["balanced", "efficiency", "noise", "cost", "size"]),
+    default="balanced", help="Design priority",
+)
+def recommend(
+    input_voltage: float, output_voltage: float, current: float, priority: str
+) -> None:
+    """Recommend the best circuit topology for given requirements."""
+    from etchant.core.topology_advisor import recommend_topology
+
+    rec = recommend_topology(input_voltage, output_voltage, current, priority=priority)
+
+    click.echo(f"Recommendation: {rec.topology}")
+    click.echo(f"  Confidence: {rec.confidence:.0%}")
+    click.echo(f"  Reason: {rec.reason}")
+
+    if rec.tradeoffs:
+        click.echo("  Tradeoffs:")
+        for t in rec.tradeoffs:
+            click.echo(f"    - {t}")
+
+    if rec.alternatives:
+        click.echo(f"  Alternatives: {', '.join(rec.alternatives)}")
+
+
 @cli.command(name="import-parts")
 @click.argument("csv_file", type=click.Path(exists=True))
 @click.option(

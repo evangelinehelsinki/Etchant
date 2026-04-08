@@ -68,7 +68,7 @@ def recommend_topology(
             topology="ldo_regulator",
             confidence=0.9,
             reason=(
-                f"Low voltage dropout ({voltage_diff}V) and moderate current "
+                f"Low voltage dropout ({voltage_diff:.1f}V) and moderate current "
                 f"({output_current}A) — LDO is simple, low-noise, and low-cost"
             ),
             tradeoffs=(
