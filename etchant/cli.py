@@ -209,6 +209,21 @@ def import_parts(csv_file: str, db_path: str) -> None:
     db.close()
 
 
+@cli.command(name="seed-parts")
+@click.option(
+    "--db", "db_path", type=click.Path(), default="data/jlcpcb_parts.db",
+    help="Path to SQLite database file",
+)
+def seed_parts(db_path: str) -> None:
+    """Populate parts database with curated power supply components."""
+    from etchant.data.seed_parts import seed_database
+
+    click.echo("Seeding JLCPCB parts database...")
+    count = seed_database(Path(db_path))
+    click.echo(f"  Imported {count} curated parts")
+    click.echo(f"  Database: {db_path}")
+
+
 @cli.command()
 @click.argument("request")
 @click.option("--api-key", envvar="ANTHROPIC_API_KEY", help="Anthropic API key")
