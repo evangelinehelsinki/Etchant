@@ -184,7 +184,7 @@ def import_parts(csv_file: str, db_path: str) -> None:
 @click.argument("request")
 @click.option("--api-key", envvar="ANTHROPIC_API_KEY", help="Anthropic API key")
 @click.option(
-    "--model", default="claude-sonnet-4-20250514", help="Claude model to use",
+    "--model", default="claude-sonnet-4-6", help="Claude model to use",
 )
 @click.option("--output-dir", "-o", type=click.Path(), default="./output")
 def agent(request: str, api_key: str | None, model: str, output_dir: str) -> None:

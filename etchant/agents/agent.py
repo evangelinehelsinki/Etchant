@@ -48,7 +48,7 @@ class EtchantAgent:
         api_key: str | None = None,
         constraints_dir: Path | None = None,
         output_dir: Path | None = None,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-6",
     ) -> None:
         self._model = model
         self._executor = ToolExecutor(
