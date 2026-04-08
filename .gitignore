@@ -48,6 +48,11 @@ output/
 gerbers/
 *.net
 
+# Data files (generated, too large for git)
+data/*.db
+data/*.sqlite3
+data/*.csv
+
 # SKiDL artifacts
 *.erc
 *.log

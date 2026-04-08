@@ -1,14 +1,10 @@
-"""Adapter for the community jlcparts SQLite database (7M+ parts).
+"""Adapter for JLCPCB parts databases.
 
-Wraps the jlcparts cache.sqlite3 database (from yaqwsx/jlcparts) and
-exposes it through our JLCPCBPartInfo interface. This is the production
-data source replacing our 35-part seed database.
+Supports two database formats:
+1. Our extracted power_parts.db (60 MB, 237K parts, fast)
+2. The full jlcparts cache.sqlite3 (12 GB, 7M parts, slow without mmap)
 
-The jlcparts schema differs from our internal schema:
-- `basic` column: 1 = basic, 0 = extended
-- `lcsc` column: integer (e.g., 1002), not string (e.g., "C1002")
-- `price` column: JSON array of quantity price breaks
-- `extra` column: JSON with full LCSC part number
+Auto-detects the schema on first connection.
 """
 
 from __future__ import annotations
@@ -21,13 +17,14 @@ from etchant.core.component_selector import JLCPCBPartInfo, PartClassification
 
 
 class JLCPartsAdapter:
-    """Read-only adapter for the jlcparts cache.sqlite3 database."""
+    """Read-only adapter for JLCPCB parts databases."""
 
     def __init__(self, db_path: Path) -> None:
         if not db_path.exists():
-            raise FileNotFoundError(f"jlcparts database not found: {db_path}")
+            raise FileNotFoundError(f"JLCPCB database not found: {db_path}")
         self._db_path = db_path
         self._conn: sqlite3.Connection | None = None
+        self._schema: str | None = None  # "extracted" or "jlcparts"
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -36,24 +33,25 @@ class JLCPartsAdapter:
                 check_same_thread=False,
             )
             self._conn.row_factory = sqlite3.Row
-            self._ensure_indexes()
+            self._detect_schema()
         return self._conn
 
-    def _ensure_indexes(self) -> None:
-        """Create indexes for fast queries (idempotent, runs once)."""
+    def _detect_schema(self) -> None:
+        """Detect whether this is our extracted DB or the jlcparts cache."""
         conn = self._conn
         if conn is None:
             return
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_comp_basic ON components(basic)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_comp_mfr ON components(mfr)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_comp_stock ON components(stock)"
-        )
-        conn.commit()
+        tables = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+        table_names = {t[0] for t in tables}
+
+        if "parts" in table_names:
+            self._schema = "extracted"
+        elif "components" in table_names:
+            self._schema = "jlcparts"
+        else:
+            raise ValueError(f"Unknown database schema: tables = {table_names}")
 
     def close(self) -> None:
         if self._conn is not None:
@@ -67,82 +65,125 @@ class JLCPartsAdapter:
         min_stock: int = 0,
         limit: int = 20,
     ) -> list[JLCPCBPartInfo]:
-        """Search parts by manufacturer part number or description."""
+        """Search parts by manufacturer part number."""
         conn = self._get_conn()
 
-        sql = """
-            SELECT c.lcsc, c.mfr, c.description, c.basic, c.stock, c.package,
-                   c.extra, cat.category, cat.subcategory
-            FROM components c
-            LEFT JOIN categories cat ON c.category_id = cat.id
-            WHERE (c.mfr LIKE ? OR c.description LIKE ?)
-        """
-        params: list[Any] = [f"%{query}%", f"%{query}%"]
+        if self._schema == "extracted":
+            return self._search_extracted(conn, query, basic_only, min_stock, limit)
+        return self._search_jlcparts(conn, query, basic_only, min_stock, limit)
+
+    def _search_extracted(
+        self,
+        conn: sqlite3.Connection,
+        query: str,
+        basic_only: bool,
+        min_stock: int,
+        limit: int,
+    ) -> list[JLCPCBPartInfo]:
+        sql = "SELECT * FROM parts WHERE mfr_part LIKE ?"
+        params: list[Any] = [f"{query}%"]
 
         if basic_only:
-            sql += " AND c.basic = 1"
-
+            sql += " AND classification = 'basic'"
         if min_stock > 0:
-            sql += " AND c.stock >= ?"
+            sql += " AND stock >= ?"
             params.append(min_stock)
 
-        # Prefer basic parts, then sort by stock
-        sql += " ORDER BY c.basic DESC, c.stock DESC LIMIT ?"
+        sql += " ORDER BY classification ASC, stock DESC LIMIT ?"
         params.append(limit)
 
         rows = conn.execute(sql, params).fetchall()
-        return [self._row_to_info(row) for row in rows]
+        return [
+            JLCPCBPartInfo(
+                part_number=r["lcsc_part"],
+                classification=(
+                    PartClassification.BASIC
+                    if r["classification"] == "basic"
+                    else PartClassification.EXTENDED
+                ),
+                description=r["description"] or "",
+                stock=r["stock"] or 0,
+            )
+            for r in rows
+        ]
 
-    def get_by_lcsc_number(self, lcsc_number: int) -> JLCPCBPartInfo | None:
-        """Look up by LCSC number (integer, e.g., 17414 for C17414)."""
-        conn = self._get_conn()
-        row = conn.execute(
-            "SELECT lcsc, mfr, description, basic, stock, package, extra "
-            "FROM components WHERE lcsc = ?",
-            (lcsc_number,),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_info(row)
+    def _search_jlcparts(
+        self,
+        conn: sqlite3.Connection,
+        query: str,
+        basic_only: bool,
+        min_stock: int,
+        limit: int,
+    ) -> list[JLCPCBPartInfo]:
+        sql = "SELECT lcsc, mfr, description, basic, stock FROM components WHERE mfr LIKE ?"
+        params: list[Any] = [f"{query}%"]
+
+        if basic_only:
+            sql += " AND basic = 1"
+        if min_stock > 0:
+            sql += " AND stock >= ?"
+            params.append(min_stock)
+
+        sql += " ORDER BY basic DESC, stock DESC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(sql, params).fetchall()
+        return [
+            JLCPCBPartInfo(
+                part_number=f"C{r['lcsc']}",
+                classification=(
+                    PartClassification.BASIC if r["basic"] == 1
+                    else PartClassification.EXTENDED
+                ),
+                description=r["description"] or "",
+                stock=r["stock"] or 0,
+            )
+            for r in rows
+        ]
 
     def get_by_lcsc_string(self, lcsc_str: str) -> JLCPCBPartInfo | None:
         """Look up by LCSC string (e.g., "C17414")."""
+        conn = self._get_conn()
+
+        if self._schema == "extracted":
+            row = conn.execute(
+                "SELECT * FROM parts WHERE lcsc_part = ?", (lcsc_str,)
+            ).fetchone()
+            if row is None:
+                return None
+            return JLCPCBPartInfo(
+                part_number=row["lcsc_part"],
+                classification=(
+                    PartClassification.BASIC
+                    if row["classification"] == "basic"
+                    else PartClassification.EXTENDED
+                ),
+                description=row["description"] or "",
+                stock=row["stock"] or 0,
+            )
+
+        # jlcparts schema
         if lcsc_str.startswith("C") and lcsc_str[1:].isdigit():
-            return self.get_by_lcsc_number(int(lcsc_str[1:]))
+            lcsc_num = int(lcsc_str[1:])
+            row = conn.execute(
+                "SELECT lcsc, mfr, description, basic, stock "
+                "FROM components WHERE lcsc = ?",
+                (lcsc_num,),
+            ).fetchone()
+            if row is None:
+                return None
+            return JLCPCBPartInfo(
+                part_number=f"C{row['lcsc']}",
+                classification=(
+                    PartClassification.BASIC if row["basic"] == 1
+                    else PartClassification.EXTENDED
+                ),
+                description=row["description"] or "",
+                stock=row["stock"] or 0,
+            )
         return None
 
     def count_total(self) -> int:
         conn = self._get_conn()
-        row = conn.execute("SELECT COUNT(*) FROM components").fetchone()
-        return row[0] if row else 0
-
-    def count_basic(self) -> int:
-        conn = self._get_conn()
-        row = conn.execute(
-            "SELECT COUNT(*) FROM components WHERE basic = 1"
-        ).fetchone()
-        return row[0] if row else 0
-
-    def count_in_stock(self, min_stock: int = 1) -> int:
-        conn = self._get_conn()
-        row = conn.execute(
-            "SELECT COUNT(*) FROM components WHERE stock >= ?",
-            (min_stock,),
-        ).fetchone()
-        return row[0] if row else 0
-
-    def _row_to_info(self, row: sqlite3.Row) -> JLCPCBPartInfo:
-        lcsc_num = row["lcsc"]
-        part_number = f"C{lcsc_num}"
-
-        classification = (
-            PartClassification.BASIC if row["basic"] == 1
-            else PartClassification.EXTENDED
-        )
-
-        return JLCPCBPartInfo(
-            part_number=part_number,
-            classification=classification,
-            description=row["description"] or "",
-            stock=row["stock"] or 0,
-        )
+        table = "parts" if self._schema == "extracted" else "components"
+        return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
