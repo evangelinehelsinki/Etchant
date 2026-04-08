@@ -12,17 +12,17 @@
       "C1": {"category": "CAPACITOR", "value": "680uF"},
       "C2": {"category": "CAPACITOR", "value": "220uF"},
       "L1": {"category": "INDUCTOR", "value": "33uH"},
-      "D1": {"category": "DIODE", "value": "1N5824"},
+      "D1": {"category": "DIODE", "value": "1N5822"},
       "R1": {"category": "RESISTOR", "value": "10k"}
     },
     "net_names": ["VIN", "GND", "SW_NODE", "VOUT", "ON_OFF"],
     "net_count": 5,
     "net_connections": {
-      "VIN": [["C1", "1"], ["U1", "IN"]],
+      "VIN": [["C1", "1"], ["U1", "VIN"]],
       "GND": [["C1", "2"], ["U1", "GND"], ["D1", "A"], ["C2", "2"], ["R1", "2"]],
       "SW_NODE": [["U1", "OUT"], ["L1", "1"], ["D1", "K"]],
       "VOUT": [["L1", "2"], ["C2", "1"], ["U1", "FB"]],
-      "ON_OFF": [["U1", "ON_OFF"], ["R1", "1"]]
+      "ON_OFF": [["U1", "~{ON}/OFF"], ["R1", "1"]]
     },
     "placement_constraints_count": 4,
     "design_notes_min_count": 3

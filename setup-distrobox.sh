@@ -72,6 +72,9 @@ ENVEOF
     cd /home/evangeline/Projects/etchant
     uv sync --all-extras
 
+    echo "--- Patching SKiDL circular import bug ---"
+    uv run python scripts/patch_skidl.py
+
     echo ""
     echo "=== Setup complete ==="
     echo "KiCad symbols: $KICAD_SYMBOL_DIR"

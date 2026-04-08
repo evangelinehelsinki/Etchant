@@ -119,10 +119,10 @@ class LM2596BuckConverter:
             ComponentSpec(
                 reference="D1",
                 category=ComponentCategory.DIODE,
-                value="1N5824",
+                value="1N5822",
                 footprint="Diode_THT:D_DO-201AD_P15.24mm_Horizontal",
                 kicad_library="Diode",
-                kicad_symbol="1N5824",
+                kicad_symbol="1N5822",
                 description="Schottky catch diode, 40V 3A",
                 properties={
                     "type": "schottky",
@@ -148,7 +148,7 @@ class LM2596BuckConverter:
                 name="VIN",
                 connections=(
                     ("C1", "1"),
-                    ("U1", "IN"),
+                    ("U1", "VIN"),
                 ),
             ),
             NetSpec(
@@ -180,7 +180,7 @@ class LM2596BuckConverter:
             NetSpec(
                 name="ON_OFF",
                 connections=(
-                    ("U1", "ON_OFF"),
+                    ("U1", "~{ON}/OFF"),
                     ("R1", "1"),
                 ),
             ),

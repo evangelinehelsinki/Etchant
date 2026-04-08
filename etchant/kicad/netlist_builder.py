@@ -2,11 +2,15 @@
 
 Isolates the SKiDL dependency so the rest of the codebase doesn't touch SKiDL directly.
 If SKiDL's API changes or a different netlist tool is needed, only this file changes.
+
+NOTE: SKiDL 2.2.2 has a circular import bug. Run scripts/patch_skidl.py after
+installing dependencies in the distrobox. See CLAUDE.md for details.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,16 +19,39 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Standard KiCad library paths on Linux
+_KICAD_SYMBOL_DIRS = [
+    "/usr/share/kicad/symbols",
+    "/usr/local/share/kicad/symbols",
+]
+
+HAS_SKIDL = False
+_KICAD_LIBS_AVAILABLE = False
+
 try:
+    # Set env vars before import to avoid SKiDL init failures
+    for sym_dir in _KICAD_SYMBOL_DIRS:
+        if Path(sym_dir).exists():
+            for var in ("KICAD_SYMBOL_DIR", "KICAD8_SYMBOL_DIR", "KICAD9_SYMBOL_DIR"):
+                os.environ.setdefault(var, sym_dir)
+            _KICAD_LIBS_AVAILABLE = True
+            break
+
     import skidl
+
+    # Add library search paths
+    for sym_dir in _KICAD_SYMBOL_DIRS:
+        if Path(sym_dir).exists() and sym_dir not in skidl.lib_search_paths[skidl.KICAD]:
+            skidl.lib_search_paths[skidl.KICAD].append(sym_dir)
 
     HAS_SKIDL = True
 except ImportError:
-    HAS_SKIDL = False
+    pass
 
 
 def check_skidl_available() -> bool:
-    return HAS_SKIDL
+    """Check if SKiDL is installed AND KiCad libraries are accessible."""
+    return HAS_SKIDL and _KICAD_LIBS_AVAILABLE
 
 
 class NetlistBuilder:

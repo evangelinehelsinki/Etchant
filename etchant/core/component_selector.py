@@ -67,10 +67,10 @@ _KNOWN_PARTS: dict[str, JLCPCBPartInfo] = {
         description="33uH power inductor",
         stock=8000,
     ),
-    "1N5824": JLCPCBPartInfo(
+    "1N5822": JLCPCBPartInfo(
         part_number="C35722",
         classification=PartClassification.BASIC,
-        description="1N5824 Schottky diode 40V 5A DO-201AD",
+        description="1N5822 Schottky diode 40V 5A DO-201AD",
         stock=50000,
     ),
     "10k": JLCPCBPartInfo(
