@@ -100,15 +100,37 @@ _KNOWN_PARTS: dict[str, JLCPCBPartInfo] = {
 }
 
 
+_db_instance: object | None = None
+
+
+def set_parts_db(db: object) -> None:
+    """Set the JLCPCB parts database instance for live lookups.
+
+    Call this at startup with a JLCPCBPartsDB instance to use real data
+    instead of the static lookup table.
+    """
+    global _db_instance  # noqa: PLW0603
+    _db_instance = db
+
+
 def lookup_jlcpcb_part(
     value: str,
     constraints_dir: Path | None = None,
 ) -> JLCPCBPartInfo | None:
     """Look up a JLCPCB part by component value.
 
-    Returns None if the part is not found in the static lookup table.
-    Week 2+ will query the JLCPCB parts API.
+    First checks the live database (if set via set_parts_db()),
+    then falls back to the static lookup table.
     """
+    if _db_instance is not None:
+        # Avoid circular import
+        from etchant.data.jlcpcb_parts import JLCPCBPartsDB
+
+        if isinstance(_db_instance, JLCPCBPartsDB):
+            results = _db_instance.search_by_value(value, min_stock=1)
+            if results:
+                return results[0].to_part_info()
+
     return _KNOWN_PARTS.get(value)
 
 
