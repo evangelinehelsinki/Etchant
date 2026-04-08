@@ -1,4 +1,4 @@
-"""CLI entry point for generating KiCad projects."""
+"""CLI entry point for generating and comparing KiCad projects."""
 
 from __future__ import annotations
 
@@ -9,50 +9,52 @@ import click
 
 from etchant.circuits import get_generator, list_topologies
 from etchant.core.bom import BOMGenerator, CostBreakdown
+from etchant.core.comparison import compare_designs
 from etchant.core.constraint_engine import ConstraintEngine, Severity
 from etchant.core.manufacturing import check_assembly_compatibility
 from etchant.core.models import CircuitSpec
+from etchant.core.serialization import load_design, save_design
 from etchant.kicad.design_export import DesignExporter
 from etchant.kicad.netlist_builder import NetlistBuilder, check_skidl_available
 from etchant.kicad.project_writer import ProjectWriter
 
 
-@click.command()
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    """Etchant — AI-powered PCB design agent."""
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@cli.command()
 @click.option("--output-dir", "-o", type=click.Path(), default="./output", help="Output directory")
 @click.option(
     "--topology", "-t", type=str, default="buck_converter",
-    help="Circuit topology (see --list-topologies)",
+    help="Circuit topology (see 'etchant topologies')",
 )
 @click.option("--input-voltage", "-vin", type=float, default=12.0, help="Input voltage (V)")
 @click.option("--output-voltage", "-vout", type=float, default=5.0, help="Output voltage (V)")
 @click.option("--current", "-i", type=float, default=2.0, help="Output current (A)")
 @click.option("--validate/--no-validate", default=True, help="Run constraint validation")
-@click.option(
-    "--list-topologies", "show_topologies", is_flag=True, help="List available topologies",
-)
 @click.option("--export-json", is_flag=True, help="Export design as JSON")
 @click.option("--export-csv", is_flag=True, help="Export BOM as JLCPCB-compatible CSV")
+@click.option("--save", "save_path", type=click.Path(), help="Save design to JSON file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
-def main(
+def generate(
     output_dir: str,
     topology: str,
     input_voltage: float,
     output_voltage: float,
     current: float,
     validate: bool,
-    show_topologies: bool,
     export_json: bool,
     export_csv: bool,
+    save_path: str | None,
     verbose: bool,
 ) -> None:
-    """Generate a KiCad project for a power supply circuit."""
+    """Generate a power supply circuit design."""
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
-
-    if show_topologies:
-        click.echo("Available topologies:")
-        for t in list_topologies():
-            click.echo(f"  {t}")
-        return
 
     try:
         generator = get_generator(topology)
@@ -95,7 +97,6 @@ def main(
         for v in info_items:
             click.echo(f"  Note: {v.message}")
 
-        # Assembly compatibility
         issues = check_assembly_compatibility(design, constraints_dir)
         for issue in issues:
             click.echo(f"  [{issue['severity']}] {issue['component']}: {issue['issue']}")
@@ -107,6 +108,11 @@ def main(
     click.echo(f"  {cost.summary()}")
 
     out = Path(output_dir)
+
+    # Save design
+    if save_path:
+        save_design(design, Path(save_path))
+        click.echo(f"  Saved: {save_path}")
 
     # Export design files
     if export_json or export_csv:
@@ -132,5 +138,28 @@ def main(
         click.echo("  Run inside distrobox for full output. See setup-distrobox.sh")
 
 
-if __name__ == "__main__":
-    main()
+@cli.command()
+def topologies() -> None:
+    """List available circuit topologies."""
+    for t in list_topologies():
+        click.echo(f"  {t}")
+
+
+@cli.command()
+@click.argument("design_a", type=click.Path(exists=True))
+@click.argument("design_b", type=click.Path(exists=True))
+def compare(design_a: str, design_b: str) -> None:
+    """Compare two saved designs and show differences."""
+    a = load_design(Path(design_a))
+    b = load_design(Path(design_b))
+
+    result = compare_designs(a, b)
+    click.echo(result.summary())
+
+    if not result.matches:
+        raise SystemExit(1)
+
+
+# Backwards-compatible entry point for pyproject.toml [project.scripts]
+def main() -> None:
+    cli()
