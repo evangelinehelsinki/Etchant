@@ -66,8 +66,8 @@ class TestBuckPassives:
         result = calculate_buck_passives(
             vin=12.0, vout=5.0, iout=2.0,
         )
-        # Default 30% ripple ratio
-        assert 0.4 <= result.ripple_current_a <= 0.8
+        # Default 80% ripple ratio (modern sync buck)
+        assert 1.0 <= result.ripple_current_a <= 2.0
 
     def test_standard_value_rounding(self) -> None:
         """Inductor should be a standard value, not arbitrary."""

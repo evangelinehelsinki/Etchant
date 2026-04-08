@@ -44,7 +44,7 @@ def calculate_buck_passives(
     vout: float,
     iout: float,
     fsw_hz: float = 500_000,
-    ripple_ratio: float = 0.3,
+    ripple_ratio: float = 0.8,
     vout_ripple_mv: float = 30.0,
     vref: float | None = None,
     rfbb_kohm: float = 10.0,
@@ -56,7 +56,9 @@ def calculate_buck_passives(
         vout: Output voltage (V)
         iout: Output current (A)
         fsw_hz: Switching frequency (Hz), default 500kHz
-        ripple_ratio: Inductor ripple as fraction of Iout (0.2-0.4 typical)
+        ripple_ratio: Inductor ripple as fraction of Iout. Modern sync bucks
+            use 0.6-1.0 (smaller inductors). Legacy converters use 0.2-0.4.
+            Default 0.8 matches WEBENCH recommendations.
         vout_ripple_mv: Target output voltage ripple (mV)
         vref: Reference voltage for feedback divider (None = fixed output IC)
         rfbb_kohm: Bottom feedback resistor value (kOhm)
