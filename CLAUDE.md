@@ -6,14 +6,30 @@ AI-powered PCB design agent that generates KiCad projects from natural language 
 
 ```
 etchant/
-  core/           # Data models, component selection, constraint engine
-  kicad/          # SKiDL netlist builder, project writer, placement helpers
-  circuits/       # Circuit generators (one per topology: buck, boost, LDO, etc.)
-  data/           # RAG ingestion scripts, JLCPCB parts DB (week 2+)
-  agents/         # LLM orchestration (week 2+)
-constraints/      # Manufacturing rules, design rules as YAML (data, not code)
-tests/            # Unit + integration tests with golden reference comparisons
-  golden/         # Known-good design outputs for regression testing
+  core/
+    models.py             # Frozen dataclasses: CircuitSpec, ComponentSpec, DesignResult, etc.
+    constraint_engine.py  # YAML-backed design validation (structural + electrical)
+    component_selector.py # JLCPCB-first part lookup with basic/extended classification
+    bom.py                # BOM generation with JLCPCB cost breakdown
+    manufacturing.py      # Manufacturing capability checks (THT detection, board cost)
+  kicad/
+    netlist_builder.py    # SKiDL wrapper (requires distrobox for KiCad libraries)
+    project_writer.py     # .kicad_pro project output
+    placement.py          # pcbnew placement stub (requires distrobox)
+    design_export.py      # JSON and CSV export (works without KiCad)
+  circuits/
+    __init__.py           # Generator registry (register_generator, get_generator)
+    base.py               # CircuitGenerator protocol
+    buck_converter.py     # LM2596 12V->5V 2A
+  data/                   # RAG ingestion scripts, JLCPCB parts DB (week 2+)
+  agents/                 # LLM orchestration (week 2+)
+  cli.py                  # Click CLI with topology dispatch and BOM output
+constraints/
+  jlcpcb_manufacturing.yaml  # DFM capabilities
+  design_rules.yaml          # Trace width vs current, clearances
+  lm2596_layout.yaml         # LM2596-specific placement/routing from TI datasheet
+tests/
+  golden/                 # Known-good design outputs for regression testing
 ```
 
 ## Circuit Generator Pattern
@@ -29,31 +45,35 @@ class CircuitGenerator(Protocol):
 ```
 
 To add a new circuit type:
-1. Create `etchant/circuits/<topology>.py`
-2. Implement the protocol
+1. Create `etchant/circuits/<topology>.py` implementing the protocol
+2. Register it in `etchant/circuits/__init__.py`
 3. Add constraint YAML in `constraints/<ic>_layout.yaml`
-4. Add golden reference in `tests/golden/<spec>.json`
-5. Add tests in `tests/test_<topology>.py`
+4. Add JLCPCB parts to `component_selector.py` static lookup table
+5. Add golden reference in `tests/golden/<spec>.json`
+6. Add tests in `tests/test_<topology>.py`
 
-## Constraint System
+## Key Modules
 
-Constraints are structured YAML in `constraints/`, not hardcoded logic:
-- `jlcpcb_manufacturing.yaml` - DFM rules (trace widths, drill sizes, etc.)
-- `design_rules.yaml` - Electrical rules (trace width vs current, via limits)
-- `<ic>_layout.yaml` - Per-IC placement/routing constraints from datasheets
+### Constraint Engine (`core/constraint_engine.py`)
+Validates designs against YAML rules:
+- Structural checks (component existence, net connectivity)
+- Trace width recommendations from `design_rules.yaml`
+- Single-pin net detection (dangling pins)
+- Severity levels: ERROR, WARNING, INFO
 
-The `ConstraintEngine` loads these and validates `DesignResult` objects against them.
+### Component Selector (`core/component_selector.py`)
+JLCPCB-first part matching:
+- Basic parts: no setup fee (resistors, common diodes)
+- Extended parts: $3 per unique part (ICs, specialty components)
+- Static lookup table for Week 1; live API via mixelpixx MCP in Week 2
 
-## Data Models
+### BOM Generator (`core/bom.py`)
+Produces BOM with cost breakdown showing basic vs extended parts
+and total JLCPCB assembly setup fees.
 
-All core data types are frozen dataclasses in `etchant/core/models.py`:
-- `CircuitSpec` - Input specification (voltage, current, topology)
-- `ComponentSpec` - Single component (reference, value, footprint, JLCPCB part number)
-- `NetSpec` - Named net with pin connections
-- `PlacementConstraint` - Physical placement rule
-- `DesignResult` - Complete generator output
-
-Collections use `tuple` (not `list`) to enforce immutability.
+### Design Export (`kicad/design_export.py`)
+- JSON: Full design state for LLM validation and review
+- CSV: JLCPCB-compatible BOM with part numbers
 
 ## Development
 
@@ -61,28 +81,23 @@ Collections use `tuple` (not `list`) to enforce immutability.
 # Install dependencies
 uv sync --all-extras
 
-# Run unit tests (works outside distrobox)
-uv run pytest tests/ -k "not requires_skidl"
-
-# Run all tests (inside distrobox with KiCad)
+# Run tests
 uv run pytest tests/ -v --cov
 
-# Generate a buck converter project
-uv run etchant -o ./output --input-voltage 12 --output-voltage 5 --current 2
+# Generate a buck converter
+uv run etchant -o ./output -vin 12 -vout 5 -i 2
 
-# Lint and type check
+# List available topologies
+uv run etchant --list-topologies
+
+# Lint
 uv run ruff check etchant/ tests/
-uv run mypy etchant/
 ```
 
 ## Testing
 
-Golden reference pattern: each supported circuit has a known-good output in `tests/golden/`.
-Tests compare generated designs against golden references on:
-- Component count and values
-- Net names and connectivity
-- Placement constraint count
-- Design notes presence
+Golden reference pattern: each circuit has a known-good output in `tests/golden/`.
+Tests verify component values, net connectivity, placement constraints, and cost data.
 
 Tests marked `@pytest.mark.requires_skidl` need KiCad + SKiDL (run inside distrobox).
 
@@ -101,3 +116,4 @@ Full toolchain requires distrobox container (see `setup-distrobox.sh`):
 - KiCad footprint strings must match `fp-lib-table` exactly.
 - pcbnew Python module only available inside KiCad's Python environment.
 - KiCad 7 broke SKiDL; use KiCad 8+.
+- `ComponentSpec.properties` uses `MappingProxyType` for true immutability.

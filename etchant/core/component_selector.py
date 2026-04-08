@@ -79,6 +79,24 @@ _KNOWN_PARTS: dict[str, JLCPCBPartInfo] = {
         description="10k 0805 1% resistor",
         stock=500000,
     ),
+    "AMS1117-3.3": JLCPCBPartInfo(
+        part_number="C6186",
+        classification=PartClassification.BASIC,
+        description="AMS1117-3.3 SOT-223 3.3V 1A LDO",
+        stock=200000,
+    ),
+    "10uF": JLCPCBPartInfo(
+        part_number="C15850",
+        classification=PartClassification.BASIC,
+        description="10uF 16V 0805 X5R ceramic capacitor",
+        stock=300000,
+    ),
+    "22uF": JLCPCBPartInfo(
+        part_number="C45783",
+        classification=PartClassification.BASIC,
+        description="22uF 10V 0805 X5R ceramic capacitor",
+        stock=250000,
+    ),
 }
 
 

@@ -1,0 +1,41 @@
+ic: AMS1117
+package: SOT-223
+datasheet: "AMS1117 datasheet"
+
+pinout:
+  1: {name: "GND", type: "ground"}
+  2: {name: "VO", type: "output"}
+  3: {name: "VI", type: "power_in"}
+  tab: {name: "VO", type: "output", notes: "Tab connected to output pin 2"}
+
+placement_constraints:
+  - component: "C_in"
+    relative_to: "IC"
+    max_distance_mm: 10
+    preferred_distance_mm: 3
+    notes: "Input capacitor close to input pin for stability"
+
+  - component: "C_out"
+    relative_to: "IC"
+    max_distance_mm: 10
+    preferred_distance_mm: 3
+    notes: "Output capacitor critical for LDO stability"
+
+routing_rules:
+  power_trace_min_width_mm: 0.3
+  ground_plane: true
+  sensitive_traces: []
+
+thermal:
+  max_power_dissipation_w: 1.5
+  notes: "SOT-223 without heatsink. For higher dissipation, use copper pour under tab."
+  copper_pour_under_tab: true
+
+reference_design:
+  input_voltage_range_v: [4.5, 15.0]
+  fixed_output_variants_v: [1.2, 1.5, 1.8, 2.5, 3.3, 5.0]
+  max_output_current_a: 1.0
+  dropout_voltage_v: 1.2
+  components:
+    C_in: {value: "10uF", voltage_rating: "16V", type: "ceramic", dielectric: "X5R"}
+    C_out: {value: "22uF", voltage_rating: "10V", type: "ceramic", dielectric: "X5R"}

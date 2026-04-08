@@ -1,0 +1,25 @@
+{
+  "spec": {
+    "topology": "ldo_regulator",
+    "input_voltage": 5.0,
+    "output_voltage": 3.3,
+    "output_current": 1.0
+  },
+  "expected": {
+    "component_count": 3,
+    "components": {
+      "U1": {"category": "IC", "value": "AMS1117-3.3"},
+      "C1": {"category": "CAPACITOR", "value": "10uF"},
+      "C2": {"category": "CAPACITOR", "value": "22uF"}
+    },
+    "net_names": ["VIN", "GND", "VOUT"],
+    "net_count": 3,
+    "net_connections": {
+      "VIN": [["C1", "1"], ["U1", "VI"]],
+      "GND": [["C1", "2"], ["U1", "GND"], ["C2", "2"]],
+      "VOUT": [["U1", "VO"], ["C2", "1"]]
+    },
+    "placement_constraints_count": 2,
+    "design_notes_min_count": 3
+  }
+}
