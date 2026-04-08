@@ -93,6 +93,15 @@ def run_design(name, topology_cls, vin, vout, iout):
     placer.create_board(design, pcb_path)
     print(f"  PCB: {pcb_path} ({pcb_path.stat().st_size} bytes)")
 
+    # Route traces
+    from etchant.kicad.router import SimpleRouter
+    router = SimpleRouter()
+    try:
+        router.route_board(pcb_path, design)
+        print(f"  Routed: {pcb_path.stat().st_size} bytes (with traces)")
+    except Exception as e:
+        print(f"  Routing skipped: {e}")
+
     # Design notes
     for note in design.design_notes:
         print(f"  Note: {note}")

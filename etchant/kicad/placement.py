@@ -91,6 +91,9 @@ class ComponentPlacer:
                         positions.get(comp.reference, (0, 0, 0))[0],
                         positions.get(comp.reference, (0, 0, 0))[1])
 
+        # Assign nets to pads based on design connectivity
+        self._assign_nets(board, design)
+
         # Add board outline
         self._add_board_outline(board, board_width_mm, board_height_mm)
 
@@ -102,6 +105,36 @@ class ComponentPlacer:
         board.Save(str(output_path))
         logger.info("Board saved: %s", output_path)
         return output_path
+
+    def _assign_nets(self, board: object, design: DesignResult) -> None:
+        """Assign net names to footprint pads based on design connectivity."""
+        # Build a map: (component_ref, pin) -> net_name
+        pin_nets: dict[tuple[str, str], str] = {}
+        for net_spec in design.nets:
+            for ref, pin in net_spec.connections:
+                pin_nets[(ref, pin)] = net_spec.name
+
+        # Create net info items
+        net_names = {n.name for n in design.nets}
+        net_items: dict[str, object] = {}
+        for net_name in net_names:
+            ni = pcbnew.NETINFO_ITEM(board, net_name)
+            board.Add(ni)
+            net_items[net_name] = ni
+
+        # Assign nets to pads
+        for fp in board.GetFootprints():
+            ref = fp.GetReference()
+            for pad in fp.Pads():
+                pad_num = pad.GetNumber()
+                # Try matching by pad number (most common for passives)
+                key = (ref, str(pad_num))
+                if key in pin_nets:
+                    net_name = pin_nets[key]
+                    ni = net_items.get(net_name)
+                    if ni:
+                        pad.SetNet(ni)
+                        logger.debug("Assigned %s.%s -> %s", ref, pad_num, net_name)
 
     def _load_footprint(self, board: object, footprint_str: str) -> object | None:
         """Load a footprint from KiCad libraries."""
