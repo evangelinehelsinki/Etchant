@@ -51,6 +51,7 @@ gerbers/
 # SKiDL artifacts
 *.erc
 *.log
+skidl_REPL_sklib.py
 
 # OS
 .DS_Store
