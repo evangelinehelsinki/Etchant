@@ -160,6 +160,26 @@ def compare(design_a: str, design_b: str) -> None:
         raise SystemExit(1)
 
 
+@cli.command(name="import-parts")
+@click.argument("csv_file", type=click.Path(exists=True))
+@click.option(
+    "--db", "db_path", type=click.Path(), default="data/jlcpcb_parts.db",
+    help="Path to SQLite database file",
+)
+def import_parts(csv_file: str, db_path: str) -> None:
+    """Import JLCPCB parts catalog from CSV export."""
+    from etchant.data.jlcpcb_parts import JLCPCBPartsDB
+
+    db = JLCPCBPartsDB(Path(db_path))
+    click.echo(f"Importing from {csv_file}...")
+    count = db.import_csv(Path(csv_file))
+    click.echo(f"  Imported {count} parts")
+    click.echo(f"  Total in database: {db.count_parts()}")
+    click.echo(f"  Basic parts: {db.count_basic_parts()}")
+    click.echo(f"  Database: {db_path}")
+    db.close()
+
+
 # Backwards-compatible entry point for pyproject.toml [project.scripts]
 def main() -> None:
     cli()
