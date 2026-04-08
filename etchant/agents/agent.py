@@ -49,14 +49,16 @@ When the user's requirements are ambiguous, ask clarifying questions.
 For noise-sensitive applications, recommend LDO regulators.
 For high-efficiency or high-current needs, recommend buck converters."""
 
-# Default model for testing — free, designed for agentic tool use
-DEFAULT_MODEL = "openai/gpt-oss-120b:free"
+# Default model — best tool-use accuracy in benchmarks (100%, chains 4-5 tools)
+DEFAULT_MODEL = "qwen/qwen3-235b-a22b"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Good alternatives (update benchmark to test these):
-# "meta-llama/llama-3.3-70b-instruct:free"  — free, solid structured output
-# "deepseek/deepseek-chat-v3-0324"           — cheap, strong tool use
-# "qwen/qwen3-235b-a22b"                    — large, good reasoning
+# Benchmark results (2026-04-08):
+# qwen/qwen3-235b-a22b        — 100% tool accuracy, chains tools, ~$0.04/query
+# deepseek/deepseek-r1         — 80%, chains tools, ~$0.02/query
+# openai/gpt-oss-120b:free     — 80%, decent chaining, FREE
+# deepseek/deepseek-chat-v3    — 40-60%, single tool calls, fast
+# meta-llama/llama-3.3:free    — 0%, broken tool use
 
 
 class EtchantAgent:
@@ -106,6 +108,10 @@ class EtchantAgent:
             self._client = openai.OpenAI(
                 api_key=self._api_key,
                 base_url=self._base_url,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/evangelinehelsinki/Etchant",
+                    "X-Title": "Etchant PCB Design Agent",
+                },
             )
 
         return self._client
