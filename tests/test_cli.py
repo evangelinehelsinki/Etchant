@@ -60,10 +60,13 @@ class TestGenerate:
             assert result.exit_code == 0
             assert "Components: 6" in result.output
 
-    def test_invalid_output_voltage_fails(self) -> None:
+    def test_step_up_fails(self) -> None:
+        """Buck converter should reject step-up (Vout > Vin)."""
         runner = CliRunner()
         with runner.isolated_filesystem():
-            result = runner.invoke(cli, ["generate", "-o", "./out", "-vout", "3.3"])
+            result = runner.invoke(
+                cli, ["generate", "-o", "./out", "-vin", "5", "-vout", "12", "-i", "1"]
+            )
             assert result.exit_code != 0
 
     def test_ldo_topology(self) -> None:

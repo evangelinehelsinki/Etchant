@@ -5,17 +5,22 @@ from __future__ import annotations
 import pytest
 
 from etchant.circuits import get_generator, list_topologies, register_generator
-from etchant.circuits.buck_converter import LM2596BuckConverter
+from etchant.circuits.generative_buck import GenerativeBuckConverter
 
 
 class TestRegistry:
     def test_buck_converter_registered(self) -> None:
         gen = get_generator("buck_converter")
-        assert isinstance(gen, LM2596BuckConverter)
+        assert isinstance(gen, GenerativeBuckConverter)
+
+    def test_legacy_lm2596_available(self) -> None:
+        gen = get_generator("buck_converter_lm2596")
+        assert gen.topology == "buck_converter"
 
     def test_list_topologies(self) -> None:
         topologies = list_topologies()
         assert "buck_converter" in topologies
+        assert "ldo_regulator" in topologies
 
     def test_unknown_topology_raises(self) -> None:
         with pytest.raises(KeyError, match="boost_converter"):
