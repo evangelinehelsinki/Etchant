@@ -18,11 +18,20 @@ from etchant.kicad.design_export import DesignExporter
 from etchant.kicad.netlist_builder import NetlistBuilder, check_skidl_available
 from etchant.kicad.project_writer import ProjectWriter
 
+_DEFAULT_PARTS_DB = Path(__file__).parent.parent / "data" / "jlcpcb_power_parts.db"
+
 
 @click.group(invoke_without_command=True)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Etchant — AI-powered PCB design agent."""
+    # Auto-connect JLCPCB parts DB if available
+    if _DEFAULT_PARTS_DB.exists():
+        from etchant.core.component_selector import set_parts_db
+        from etchant.data.jlcparts_adapter import JLCPartsAdapter
+
+        set_parts_db(JLCPartsAdapter(_DEFAULT_PARTS_DB))
+
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 

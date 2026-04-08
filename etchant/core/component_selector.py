@@ -123,13 +123,15 @@ def lookup_jlcpcb_part(
     then falls back to the static lookup table.
     """
     if _db_instance is not None:
-        # Avoid circular import
-        from etchant.data.jlcpcb_parts import JLCPCBPartsDB
-
-        if isinstance(_db_instance, JLCPCBPartsDB):
+        # Avoid circular imports — check by method presence, not isinstance
+        if hasattr(_db_instance, "search_by_value"):
             results = _db_instance.search_by_value(value, min_stock=1)
             if results:
                 return results[0].to_part_info()
+        elif hasattr(_db_instance, "search"):
+            results = _db_instance.search(value, min_stock=1, limit=1)
+            if results:
+                return results[0]
 
     return _KNOWN_PARTS.get(value)
 
