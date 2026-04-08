@@ -177,10 +177,15 @@ class ComponentPlacer:
     def _add_board_outline(
         self, board: object, width_mm: float, height_mm: float
     ) -> None:
-        """Add rectangular board edge cuts."""
+        """Add rectangular board edge cuts, centered on component placement area."""
+        # Offset so components (placed at center of w/h) are inside the board
+        ox = -_BOARD_MARGIN
+        oy = -_BOARD_MARGIN
+        w = width_mm + 2 * _BOARD_MARGIN
+        h = height_mm + 2 * _BOARD_MARGIN
         corners = [
-            (0, 0), (width_mm, 0),
-            (width_mm, height_mm), (0, height_mm),
+            (ox, oy), (ox + w, oy),
+            (ox + w, oy + h), (ox, oy + h),
         ]
         for i in range(4):
             sx, sy = corners[i]
