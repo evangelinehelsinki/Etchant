@@ -19,6 +19,9 @@ from etchant.core.models import ComponentCategory, DesignResult
 logger = logging.getLogger(__name__)
 
 _BOARD_MARGIN = 3.0
+# KiCad convention: boards are placed near center of A4 sheet
+_PAGE_OFFSET_X = 100.0
+_PAGE_OFFSET_Y = 100.0
 
 try:
     import pcbnew
@@ -130,8 +133,8 @@ class ComponentPlacer:
         """Calculate component positions. Returns {ref: (x_mm, y_mm, rotation_deg)}."""
         positions: dict[str, tuple[float, float, float]] = {}
 
-        center_x = board_w / 2
-        center_y = board_h / 2
+        center_x = _PAGE_OFFSET_X + board_w / 2
+        center_y = _PAGE_OFFSET_Y + board_h / 2
 
         # Find the IC
         ic_ref = None
@@ -169,8 +172,8 @@ class ComponentPlacer:
             x = center_x + distance * math.cos(rad)
             y = center_y + distance * math.sin(rad)
 
-            x = max(_BOARD_MARGIN, min(board_w - _BOARD_MARGIN, x))
-            y = max(_BOARD_MARGIN, min(board_h - _BOARD_MARGIN, y))
+            x = max(_PAGE_OFFSET_X + _BOARD_MARGIN, min(_PAGE_OFFSET_X + board_w - _BOARD_MARGIN, x))
+            y = max(_PAGE_OFFSET_Y + _BOARD_MARGIN, min(_PAGE_OFFSET_Y + board_h - _BOARD_MARGIN, y))
 
             rotation = 0.0
             if comp.category in (ComponentCategory.CAPACITOR, ComponentCategory.RESISTOR):
@@ -185,9 +188,8 @@ class ComponentPlacer:
         self, board: object, width_mm: float, height_mm: float
     ) -> None:
         """Add rectangular board edge cuts, centered on component placement area."""
-        # Offset so components (placed at center of w/h) are inside the board
-        ox = -_BOARD_MARGIN
-        oy = -_BOARD_MARGIN
+        ox = _PAGE_OFFSET_X - _BOARD_MARGIN
+        oy = _PAGE_OFFSET_Y - _BOARD_MARGIN
         w = width_mm + 2 * _BOARD_MARGIN
         h = height_mm + 2 * _BOARD_MARGIN
         corners = [
