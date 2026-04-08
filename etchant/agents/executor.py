@@ -18,6 +18,7 @@ from etchant.core.component_selector import lookup_jlcpcb_part
 from etchant.core.constraint_engine import ConstraintEngine, Severity
 from etchant.core.manufacturing import check_assembly_compatibility, estimate_board_cost
 from etchant.core.models import CircuitSpec
+from etchant.core.topology_advisor import recommend_topology
 from etchant.kicad.design_export import DesignExporter
 
 
@@ -156,32 +157,38 @@ class ToolExecutor:
         }
 
     def _suggest_topology(self, args: dict[str, Any]) -> dict[str, Any]:
+        vin = args.get("input_voltage")
+        vout = args.get("output_voltage")
+        iout = args.get("output_current")
+        priority = args.get("priority", "balanced")
+
+        if vin is not None and vout is not None and iout is not None:
+            rec = recommend_topology(vin, vout, iout, priority=priority)
+            return {
+                "suggested_topology": rec.topology,
+                "confidence": rec.confidence,
+                "reason": rec.reason,
+                "tradeoffs": list(rec.tradeoffs),
+                "alternatives": list(rec.alternatives),
+            }
+
         desc = args.get("description", "").lower()
 
         if any(w in desc for w in ("low noise", "ldo", "linear", "low dropout")):
             return {
                 "suggested_topology": "ldo_regulator",
-                "reason": "LDO regulators provide clean, low-noise output with minimal components",
-                "tradeoff": (
-                    "Lower efficiency due to linear regulation — "
-                    "power is dissipated as heat"
-                ),
+                "reason": "LDO regulators provide clean, low-noise output",
             }
 
-        if any(w in desc for w in ("efficient", "high current", "step down", "buck", "switch")):
+        if any(w in desc for w in ("efficient", "high current", "step down", "buck")):
             return {
                 "suggested_topology": "buck_converter",
-                "reason": "Buck converters are highly efficient (85-95%) for step-down conversion",
-                "tradeoff": "More complex circuit, switching noise on output",
+                "reason": "Buck converters are highly efficient (85-95%)",
             }
 
-        # Default: compare voltage difference to suggest
         return {
             "suggested_topology": "buck_converter",
-            "reason": (
-                "Buck converter is the default for step-down power conversion. "
-                "Use LDO if noise is critical and power dissipation is acceptable."
-            ),
+            "reason": "Default — use LDO if noise is critical",
             "available_topologies": list(list_topologies()),
         }
 
