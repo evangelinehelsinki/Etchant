@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 
 from etchant.circuits import get_generator, list_topologies
+from etchant.core.bom import BOMGenerator, CostBreakdown
 from etchant.core.constraint_engine import ConstraintEngine, Severity
 from etchant.core.models import CircuitSpec
 from etchant.kicad.netlist_builder import NetlistBuilder, check_skidl_available
@@ -92,6 +93,12 @@ def main(
 
             for v in info_items:
                 click.echo(f"  Note: {v.message}")
+
+    # BOM and cost estimation
+    bom_gen = BOMGenerator()
+    bom = bom_gen.generate(design)
+    cost = CostBreakdown.from_bom(bom)
+    click.echo(f"  {cost.summary()}")
 
     out = Path(output_dir)
 
