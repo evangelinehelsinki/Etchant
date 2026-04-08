@@ -114,16 +114,32 @@ TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
         name="suggest_topology",
         description=(
-            "Given a natural language description of power requirements, "
-            "suggest the best circuit topology and explain why."
+            "Suggest the best circuit topology for given power requirements. "
+            "Provide either numerical specs or a natural language description."
         ),
         parameters={
             "description": {
                 "type": "string",
                 "description": "Natural language description of the power supply needed",
             },
+            "input_voltage": {
+                "type": "number",
+                "description": "Input voltage in volts (for precise recommendation)",
+            },
+            "output_voltage": {
+                "type": "number",
+                "description": "Output voltage in volts",
+            },
+            "output_current": {
+                "type": "number",
+                "description": "Output current in amps",
+            },
+            "priority": {
+                "type": "string",
+                "description": "Design priority: balanced, efficiency, noise, cost, or size",
+            },
         },
-        required_params=("description",),
+        required_params=(),
     ),
     ToolDefinition(
         name="export_design",

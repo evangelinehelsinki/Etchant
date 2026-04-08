@@ -129,6 +129,25 @@ class TestSuggestTopology:
         })
         assert result["suggested_topology"] == "buck_converter"
 
+    def test_numerical_params_uses_advisor(self, executor: ToolExecutor) -> None:
+        result = executor.execute("suggest_topology", {
+            "input_voltage": 12.0,
+            "output_voltage": 5.0,
+            "output_current": 2.0,
+        })
+        assert result["suggested_topology"] == "buck_converter"
+        assert "confidence" in result
+        assert "tradeoffs" in result
+
+    def test_numerical_with_priority(self, executor: ToolExecutor) -> None:
+        result = executor.execute("suggest_topology", {
+            "input_voltage": 5.0,
+            "output_voltage": 3.3,
+            "output_current": 0.5,
+            "priority": "noise",
+        })
+        assert result["suggested_topology"] == "ldo_regulator"
+
 
 class TestExportDesign:
     def test_export_json(self, executor: ToolExecutor, tmp_path: Path) -> None:
@@ -154,6 +173,64 @@ class TestExportDesign:
             "output_dir": str(tmp_path),
         })
         assert len(result["exported"]) == 2
+
+
+class TestPathTraversal:
+    def test_export_rejects_path_outside_output(
+        self, constraints_dir: Path, tmp_path: Path
+    ) -> None:
+        executor = ToolExecutor(constraints_dir=constraints_dir, output_dir=tmp_path)
+        result = executor.execute("export_design", {
+            "topology": "ldo_regulator",
+            "input_voltage": 5.0,
+            "output_voltage": 3.3,
+            "output_current": 0.5,
+            "format": "json",
+            "output_dir": "/etc/evil",
+        })
+        assert "error" in result
+        assert "output_dir" in result["error"]
+
+    def test_export_rejects_relative_traversal(
+        self, constraints_dir: Path, tmp_path: Path
+    ) -> None:
+        executor = ToolExecutor(constraints_dir=constraints_dir, output_dir=tmp_path)
+        result = executor.execute("export_design", {
+            "topology": "ldo_regulator",
+            "input_voltage": 5.0,
+            "output_voltage": 3.3,
+            "output_current": 0.5,
+            "format": "json",
+            "output_dir": str(tmp_path / ".." / ".." / "etc"),
+        })
+        assert "error" in result
+
+
+class TestInputValidation:
+    def test_missing_params_returns_error(self, executor: ToolExecutor) -> None:
+        result = executor.execute("generate_circuit", {
+            "topology": "buck_converter",
+        })
+        assert "error" in result
+
+    def test_negative_voltage_returns_error(self, executor: ToolExecutor) -> None:
+        result = executor.execute("generate_circuit", {
+            "topology": "buck_converter",
+            "input_voltage": -12.0,
+            "output_voltage": 5.0,
+            "output_current": 2.0,
+        })
+        assert "error" in result
+
+    def test_error_does_not_leak_internal_paths(self, executor: ToolExecutor) -> None:
+        result = executor.execute("generate_circuit", {
+            "topology": "nonexistent",
+            "input_voltage": 12.0,
+            "output_voltage": 5.0,
+            "output_current": 2.0,
+        })
+        assert "error" in result
+        assert "/home/" not in result["error"]
 
 
 class TestUnknownTool:

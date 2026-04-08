@@ -14,6 +14,7 @@ Requires: anthropic package (pip install anthropic)
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -111,7 +112,7 @@ class EtchantAgent:
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": str(result),
+                            "content": json.dumps(result),
                         })
 
                 messages.append({"role": "assistant", "content": response.content})

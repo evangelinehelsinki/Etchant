@@ -3,12 +3,11 @@
 Maps tool call names to actual pipeline functions. The agent sends a tool name
 and arguments; the executor runs the corresponding pipeline operation and returns
 a structured result.
-
-This is the bridge between the LLM's tool_use calls and the Etchant pipeline.
 """
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -21,14 +20,18 @@ from etchant.core.models import CircuitSpec
 from etchant.core.topology_advisor import recommend_topology
 from etchant.kicad.design_export import DesignExporter
 
+logger = logging.getLogger(__name__)
+
 
 class ToolExecutor:
     """Executes tool calls from the LLM agent."""
 
-    def __init__(self, constraints_dir: Path | None = None, output_dir: Path | None = None) -> None:
+    def __init__(
+        self, constraints_dir: Path | None = None, output_dir: Path | None = None
+    ) -> None:
         default_constraints = Path(__file__).parent.parent.parent / "constraints"
         self._constraints_dir = constraints_dir or default_constraints
-        self._output_dir = output_dir or Path("./output")
+        self._output_dir = (output_dir or Path("./output")).resolve()
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute a tool call and return the result as a dict."""
@@ -48,8 +51,9 @@ class ToolExecutor:
 
         try:
             return handler(arguments)
-        except Exception as e:
-            return {"error": str(e)}
+        except Exception:
+            logger.exception("Tool '%s' failed", tool_name)
+            return {"error": f"Tool '{tool_name}' failed"}
 
     def _list_topologies(self, _args: dict[str, Any]) -> dict[str, Any]:
         return {"topologies": list(list_topologies())}
@@ -163,7 +167,9 @@ class ToolExecutor:
         priority = args.get("priority", "balanced")
 
         if vin is not None and vout is not None and iout is not None:
-            rec = recommend_topology(vin, vout, iout, priority=priority)
+            rec = recommend_topology(
+                float(vin), float(vout), float(iout), priority=priority,
+            )
             return {
                 "suggested_topology": rec.topology,
                 "confidence": rec.confidence,
@@ -198,7 +204,14 @@ class ToolExecutor:
         design = generator.generate(spec)
 
         export_format = args.get("format", "both")
-        out_dir = Path(args.get("output_dir", str(self._output_dir)))
+
+        # Validate output_dir stays within configured output directory
+        requested = Path(args.get("output_dir", str(self._output_dir)))
+        resolved = requested.resolve()
+        if not resolved.is_relative_to(self._output_dir):
+            return {"error": f"output_dir must be within {self._output_dir}"}
+        out_dir = resolved
+
         exporter = DesignExporter(out_dir)
 
         result: dict[str, Any] = {"exported": []}
@@ -214,10 +227,20 @@ class ToolExecutor:
         return result
 
     def _make_spec(self, args: dict[str, Any]) -> CircuitSpec:
-        topology = args["topology"]
-        vin = args["input_voltage"]
-        vout = args["output_voltage"]
-        iout = args["output_current"]
+        required = ("topology", "input_voltage", "output_voltage", "output_current")
+        missing = [k for k in required if k not in args]
+        if missing:
+            raise ValueError(f"Missing required parameters: {', '.join(missing)}")
+
+        vin = float(args["input_voltage"])
+        vout = float(args["output_voltage"])
+        iout = float(args["output_current"])
+
+        if vin <= 0 or vout <= 0 or iout <= 0:
+            raise ValueError("Voltages and current must be positive")
+
+        topology = str(args["topology"])
+
         return CircuitSpec(
             name=f"{topology}_{int(vin)}v_{int(vout)}v",
             topology=topology,
