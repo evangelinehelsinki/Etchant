@@ -85,11 +85,22 @@ class NetlistBuilder:
             )
             skidl_parts[comp.reference] = part
 
-        # Create nets and wire connections
+        # Create nets and wire connections (with pin name mapping)
+        from etchant.kicad.pin_mapping import get_pin_name
+
         for net_spec in design.nets:
             net = skidl.Net(net_spec.name)
             for ref, pin_name in net_spec.connections:
                 part = skidl_parts[ref]
+                # Map generic pin names to KiCad-specific names for ICs
+                comp = next(
+                    (c for c in design.components if c.reference == ref), None,
+                )
+                if comp and comp.category.name == "IC":
+                    mapped = get_pin_name(comp.kicad_symbol, pin_name)
+                    if mapped != pin_name:
+                        logger.debug("Pin mapped: %s.%s -> %s", ref, pin_name, mapped)
+                    pin_name = mapped
                 net += part[pin_name]
 
         # Generate the netlist file
