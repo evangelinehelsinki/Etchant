@@ -9,7 +9,9 @@ from __future__ import annotations
 from typing import Any
 
 from etchant.circuits.buck_converter import LM2596BuckConverter
+from etchant.circuits.generative_boost import GenerativeBoostConverter
 from etchant.circuits.generative_buck import GenerativeBuckConverter
+from etchant.circuits.generative_ldo import GenerativeLDORegulator
 from etchant.circuits.ldo_regulator import AMS1117LDORegulator
 
 _REGISTRY: dict[str, type[Any]] = {}
@@ -37,5 +39,7 @@ def list_topologies() -> tuple[str, ...]:
 
 # Register built-in generators
 register_generator("buck_converter", GenerativeBuckConverter)
+register_generator("boost_converter", GenerativeBoostConverter)
+register_generator("ldo_regulator", GenerativeLDORegulator)
 register_generator("buck_converter_lm2596", LM2596BuckConverter)
-register_generator("ldo_regulator", AMS1117LDORegulator)
+register_generator("ldo_regulator_ams1117", AMS1117LDORegulator)

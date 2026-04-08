@@ -46,12 +46,22 @@ class TestGenerateCircuit:
 
     def test_invalid_topology(self, executor: ToolExecutor) -> None:
         result = executor.execute("generate_circuit", {
-            "topology": "boost_converter",
+            "topology": "flyback_converter",
             "input_voltage": 5.0,
             "output_voltage": 12.0,
             "output_current": 1.0,
         })
         assert "error" in result
+
+    def test_boost_converter(self, executor: ToolExecutor) -> None:
+        result = executor.execute("generate_circuit", {
+            "topology": "boost_converter",
+            "input_voltage": 3.7,
+            "output_voltage": 5.0,
+            "output_current": 1.0,
+        })
+        assert "error" not in result
+        assert len(result["components"]) == 7
 
     def test_invalid_spec(self, executor: ToolExecutor) -> None:
         result = executor.execute("generate_circuit", {

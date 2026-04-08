@@ -23,8 +23,12 @@ class TestRegistry:
         assert "ldo_regulator" in topologies
 
     def test_unknown_topology_raises(self) -> None:
-        with pytest.raises(KeyError, match="boost_converter"):
-            get_generator("boost_converter")
+        with pytest.raises(KeyError, match="flyback_converter"):
+            get_generator("flyback_converter")
+
+    def test_boost_converter_registered(self) -> None:
+        gen = get_generator("boost_converter")
+        assert gen.topology == "boost_converter"
 
     def test_register_custom_generator(self) -> None:
         class FakeGenerator:
