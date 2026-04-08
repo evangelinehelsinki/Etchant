@@ -1,28 +1,193 @@
-"""Component placement via KiCad's pcbnew API.
+"""Component placement engine using KiCad's pcbnew API.
+
+Creates a .kicad_pcb board directly from a DesignResult, placing
+footprints according to placement constraints. No netlist import
+needed — footprints are loaded directly from KiCad libraries.
 
 NOTE: pcbnew is only available inside the KiCad distrobox environment.
-This module will raise ImportError if pcbnew is not available.
-
-Week 1: stub implementation. Actual pcbnew integration comes once
-the distrobox environment is verified working.
+Uses system Python (not venv) since pcbnew is a system package.
 """
 
 from __future__ import annotations
 
+import logging
+import math
 from pathlib import Path
 
-from etchant.core.models import DesignResult
+from etchant.core.models import ComponentCategory, DesignResult
+
+logger = logging.getLogger(__name__)
+
+_BOARD_MARGIN = 3.0
+
+try:
+    import pcbnew
+
+    HAS_PCBNEW = True
+except ImportError:
+    HAS_PCBNEW = False
+
+
+def check_pcbnew_available() -> bool:
+    return HAS_PCBNEW
 
 
 class ComponentPlacer:
     """Places components on a PCB using KiCad's pcbnew API."""
 
-    def place_components(
+    def create_board(
         self,
-        pcb_path: Path,
         design: DesignResult,
+        output_path: Path,
+        board_width_mm: float = 30.0,
+        board_height_mm: float = 25.0,
     ) -> Path:
-        """Place components according to design constraints. Returns path to .kicad_pcb."""
-        raise NotImplementedError(
-            "pcbnew placement requires KiCad environment. See setup-distrobox.sh"
-        )
+        """Create a .kicad_pcb with placed footprints.
+
+        Loads footprints from KiCad libraries and places them according
+        to the design's placement constraints.
+        """
+        if not HAS_PCBNEW:
+            raise RuntimeError(
+                "pcbnew not available. Run inside distrobox with system Python."
+            )
+
+        board = pcbnew.BOARD()
+
+        # Load and place footprints
+        positions = self._calculate_positions(design, board_width_mm, board_height_mm)
+
+        for comp in design.components:
+            fp = self._load_footprint(board, comp.footprint)
+            if fp is None:
+                logger.warning(
+                    "Could not load footprint for %s: %s",
+                    comp.reference, comp.footprint,
+                )
+                continue
+
+            fp.SetReference(comp.reference)
+            fp.SetValue(comp.value)
+
+            if comp.reference in positions:
+                x_mm, y_mm, rotation = positions[comp.reference]
+                fp.SetPosition(
+                    pcbnew.VECTOR2I(pcbnew.FromMM(x_mm), pcbnew.FromMM(y_mm))
+                )
+                fp.SetOrientationDegrees(rotation)
+
+            board.Add(fp)
+            logger.info("Placed %s (%s) at %.1f, %.1f", comp.reference, comp.value,
+                        positions.get(comp.reference, (0, 0, 0))[0],
+                        positions.get(comp.reference, (0, 0, 0))[1])
+
+        # Add board outline
+        self._add_board_outline(board, board_width_mm, board_height_mm)
+
+        # Save
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        board.Save(str(output_path))
+        logger.info("Board saved: %s", output_path)
+        return output_path
+
+    def _load_footprint(self, board: object, footprint_str: str) -> object | None:
+        """Load a footprint from KiCad libraries."""
+        # footprint_str format: "Library:Footprint" e.g. "Resistor_SMD:R_0805_2012Metric"
+        parts = footprint_str.split(":")
+        if len(parts) != 2:
+            return None
+
+        lib_name, fp_name = parts
+
+        try:
+            fp = pcbnew.FootprintLoad(
+                f"/usr/share/kicad/footprints/{lib_name}.pretty",
+                fp_name,
+            )
+            if fp is not None:
+                return fp
+        except Exception:
+            pass
+
+        # Fallback: create a minimal placeholder footprint
+        logger.debug("Creating placeholder for %s", footprint_str)
+        fp = pcbnew.FOOTPRINT(board)
+        return fp
+
+    def _calculate_positions(
+        self,
+        design: DesignResult,
+        board_w: float,
+        board_h: float,
+    ) -> dict[str, tuple[float, float, float]]:
+        """Calculate component positions. Returns {ref: (x_mm, y_mm, rotation_deg)}."""
+        positions: dict[str, tuple[float, float, float]] = {}
+
+        center_x = board_w / 2
+        center_y = board_h / 2
+
+        # Find the IC
+        ic_ref = None
+        for comp in design.components:
+            if comp.category == ComponentCategory.IC:
+                ic_ref = comp.reference
+                break
+
+        if ic_ref is None and design.components:
+            ic_ref = design.components[0].reference
+
+        # Place IC in center
+        if ic_ref:
+            positions[ic_ref] = (center_x, center_y, 0)
+
+        # Place passives around the IC
+        passive_refs = [c.reference for c in design.components if c.reference != ic_ref]
+        if not passive_refs:
+            return positions
+
+        angle_step = 360.0 / len(passive_refs)
+        current_angle = -90.0  # Start above IC
+
+        for comp in design.components:
+            if comp.reference in positions:
+                continue
+
+            distance = 8.0
+            for pc in design.placement_constraints:
+                if pc.component_ref == comp.reference:
+                    distance = min(pc.max_distance_mm, 10.0)
+                    break
+
+            rad = math.radians(current_angle)
+            x = center_x + distance * math.cos(rad)
+            y = center_y + distance * math.sin(rad)
+
+            x = max(_BOARD_MARGIN, min(board_w - _BOARD_MARGIN, x))
+            y = max(_BOARD_MARGIN, min(board_h - _BOARD_MARGIN, y))
+
+            rotation = 0.0
+            if comp.category in (ComponentCategory.CAPACITOR, ComponentCategory.RESISTOR):
+                rotation = 90.0 if abs(math.cos(rad)) < 0.5 else 0.0
+
+            positions[comp.reference] = (round(x, 2), round(y, 2), rotation)
+            current_angle += angle_step
+
+        return positions
+
+    def _add_board_outline(
+        self, board: object, width_mm: float, height_mm: float
+    ) -> None:
+        """Add rectangular board edge cuts."""
+        corners = [
+            (0, 0), (width_mm, 0),
+            (width_mm, height_mm), (0, height_mm),
+        ]
+        for i in range(4):
+            sx, sy = corners[i]
+            ex, ey = corners[(i + 1) % 4]
+            line = pcbnew.PCB_SHAPE(board)
+            line.SetLayer(pcbnew.Edge_Cuts)
+            line.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(sx), pcbnew.FromMM(sy)))
+            line.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(ex), pcbnew.FromMM(ey)))
+            line.SetWidth(pcbnew.FromMM(0.1))
+            board.Add(line)
