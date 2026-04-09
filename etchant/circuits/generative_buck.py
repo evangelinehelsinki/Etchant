@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 _IC_DEFAULTS = {
     "kicad_library": "Regulator_Switching",
-    "footprint": "Package_TO_SOT_SMD:SOT-23-6",
+    "footprint": "Package_TO_SOT_SMD:SOT-563",
 }
 
 
@@ -274,19 +274,19 @@ class GenerativeBuckConverter:
         ]
 
         if passives.feedback_top_kohm is not None:
+            # FB pin connects to the resistor divider midpoint
             nets.append(
-                NetSpec(name="FB", connections=(("U1", "FB"), ("R1", "1")))
+                NetSpec(name="FB", connections=(("U1", "FB"), ("R1", "2"), ("R2", "1")))
             )
-            nets.append(
-                NetSpec(name="FB_DIV", connections=(("R1", "2"), ("R2", "1")))
-            )
-            # R2 bottom to VOUT for top-side sensing
+            # R1 top connects to VOUT (output sensing)
             nets[3] = NetSpec(
                 name="VOUT",
                 connections=(("L1", "2"), ("C2", "1"), ("R1", "1")),
             )
-            nets.append(
-                NetSpec(name="FB_GND", connections=(("R2", "2"), ("U1", "GND")))
+            # R2 bottom connects to GND (add to existing GND net)
+            nets[1] = NetSpec(
+                name="GND",
+                connections=(("C1", "2"), ("U1", "GND"), ("C2", "2"), ("R2", "2")),
             )
 
         constraints = (

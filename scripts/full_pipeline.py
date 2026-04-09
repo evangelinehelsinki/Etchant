@@ -12,7 +12,7 @@ os.environ["KICAD_SYMBOL_DIR"] = "/usr/share/kicad/symbols"
 os.environ["KICAD8_SYMBOL_DIR"] = "/usr/share/kicad/symbols"
 os.environ["KICAD9_SYMBOL_DIR"] = "/usr/share/kicad/symbols"
 
-from etchant.circuits.buck_converter import LM2596BuckConverter
+from etchant.circuits.generative_buck import GenerativeBuckConverter
 from etchant.circuits.ldo_regulator import AMS1117LDORegulator
 from etchant.core.bom import BOMGenerator, CostBreakdown
 from etchant.core.constraint_engine import ConstraintEngine, Severity
@@ -123,7 +123,7 @@ dirs.append(run_design(
 
 dirs.append(run_design(
     "buck_12v_to_5v",
-    LM2596BuckConverter,
+    GenerativeBuckConverter,
     12.0, 5.0, 2.0,
 ))
 

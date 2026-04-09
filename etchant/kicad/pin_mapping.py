@@ -57,19 +57,20 @@ _PIN_MAPS: dict[str, dict[str, str]] = {
         "ADJ": "ADJ",
     },
     # TPS56x family (common modern buck converters from WEBENCH)
+    # Verified against KiCad 9.0.8 symbol libraries
     "TPS563200": {
         "VIN": "VIN",
         "GND": "GND",
         "SW": "SW",
-        "FB": "FB",
+        "FB": "VFB",
         "EN": "EN",
-        "BST": "BST",
+        "BST": "VBST",
     },
     "TPS564257": {
         "VIN": "VIN",
         "GND": "PGND",
         "SW": "SW",
-        "FB": "FB",
+        "FB": "VFB",
         "EN": "EN",
         "BST": "BST",
     },
@@ -77,7 +78,7 @@ _PIN_MAPS: dict[str, dict[str, str]] = {
         "VIN": "VIN",
         "GND": "PGND",
         "SW": "SW",
-        "FB": "FB",
+        "FB": "VFB",
         "EN": "EN",
         "BST": "BST",
     },
@@ -164,15 +165,26 @@ _PAD_NUMBER_MAPS: dict[str, dict[str, str]] = {
         "~{ON}/OFF": "5",
         "ON_OFF": "5",
     },
-    # SOT-23-6 (common for modern buck converters like TPS563200)
+    # SOT-563 / SOT-23-6 for TPS56x family (verified: GND=1, SW=2, VIN=3, VFB=4, EN=5, VBST=6)
+    "SOT-563": {
+        "GND": "1",
+        "SW": "2",
+        "VIN": "3",
+        "VFB": "4",
+        "FB": "4",
+        "EN": "5",
+        "VBST": "6",
+        "BST": "6",
+    },
     "SOT-23-6": {
-        "BST": "1",
-        "GND": "2",
-        "PGND": "2",
-        "FB": "3",
-        "EN": "4",
-        "VIN": "5",
-        "SW": "6",
+        "GND": "1",
+        "SW": "2",
+        "VIN": "3",
+        "VFB": "4",
+        "FB": "4",
+        "EN": "5",
+        "VBST": "6",
+        "BST": "6",
     },
 }
 

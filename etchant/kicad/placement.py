@@ -150,11 +150,11 @@ class ComponentPlacer:
                         continue
 
                 # Passive pin name -> pad number mapping
-                _PASSIVE_PIN_MAP = {
+                passive_pin_map = {
                     "A": "1", "K": "2",  # Diodes
                 }
                 mapped = False
-                for pin_alias, target_pad in _PASSIVE_PIN_MAP.items():
+                for pin_alias, target_pad in passive_pin_map.items():
                     if pad_num == target_pad and (ref, pin_alias) in pin_nets:
                         ni = net_items.get(pin_nets[(ref, pin_alias)])
                         if ni:
