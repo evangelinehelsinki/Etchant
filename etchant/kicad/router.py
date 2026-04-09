@@ -58,9 +58,16 @@ class FreeroutingRouter:
         dsn_path = pcb_path.with_suffix(".dsn")
         ses_path = pcb_path.with_suffix(".ses")
 
-        # Step 1: Export DSN
+        # Step 1: Set design rules and export DSN
         logger.info("Exporting DSN: %s", dsn_path)
         board = pcbnew.LoadBoard(str(pcb_path))
+
+        # Set clearance rules for Freerouting
+        settings = board.GetDesignSettings()
+        settings.SetCopperLayerCount(2)
+        settings.m_MinClearance = pcbnew.FromMM(0.3)  # 0.3mm clearance
+        settings.m_TrackMinWidth = pcbnew.FromMM(0.25)
+
         result = pcbnew.ExportSpecctraDSN(board, str(dsn_path))
         if not result:
             raise RuntimeError("Failed to export Specctra DSN")
