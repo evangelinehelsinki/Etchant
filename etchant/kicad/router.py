@@ -1,24 +1,20 @@
-"""Simple point-to-point trace router for power supply boards.
+"""PCB trace routing using Freerouting autorouter.
 
-For simple boards (3-7 components), routes traces directly between
-connected pads using straight lines with one bend (L-route).
-Not a general autorouter — just enough for power supply circuits.
+Exports the board as Specctra DSN, runs Freerouting in headless mode,
+and imports the routed session (SES) back into the KiCad board.
 
-Uses pcbnew's PCB_TRACK API to create traces.
+Requires: Java runtime and freerouting.jar in tools/ directory.
 """
 
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
-
-from etchant.core.ee_calculations import trace_width_for_current
-from etchant.core.models import DesignResult
 
 logger = logging.getLogger(__name__)
 
-# Net names that carry power (use wider traces)
-_POWER_NETS = {"VIN", "VOUT", "SW", "SW_NODE"}
+_FREEROUTING_JAR = Path(__file__).parent.parent.parent / "tools" / "freerouting.jar"
 
 try:
     import pcbnew
@@ -28,105 +24,94 @@ except ImportError:
     HAS_PCBNEW = False
 
 
-class SimpleRouter:
-    """Routes traces between pads on a placed PCB board."""
+def check_freerouting_available() -> bool:
+    """Check if Freerouting JAR and Java are available."""
+    if not _FREEROUTING_JAR.exists():
+        return False
+    try:
+        result = subprocess.run(
+            ["java", "-version"], capture_output=True, timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
 
-    def route_board(
-        self,
-        pcb_path: Path,
-        design: DesignResult,
-        default_width_mm: float = 0.25,
-    ) -> Path:
-        """Add traces to an existing .kicad_pcb file.
 
-        Routes each net by connecting pads in sequence with L-shaped traces.
-        Power nets get wider traces based on output current.
+class FreeroutingRouter:
+    """Routes PCB traces using the Freerouting autorouter."""
+
+    def __init__(self, freerouting_jar: Path | None = None, max_passes: int = 20) -> None:
+        self._jar = freerouting_jar or _FREEROUTING_JAR
+        self._max_passes = max_passes
+
+    def route_board(self, pcb_path: Path) -> Path:
+        """Route all unconnected nets on a .kicad_pcb board.
+
+        Exports DSN, runs Freerouting, imports SES result.
+        Returns path to the routed board (modifies in place).
         """
         if not HAS_PCBNEW:
             raise RuntimeError("pcbnew not available")
+        if not self._jar.exists():
+            raise FileNotFoundError(f"Freerouting JAR not found: {self._jar}")
 
+        dsn_path = pcb_path.with_suffix(".dsn")
+        ses_path = pcb_path.with_suffix(".ses")
+
+        # Step 1: Export DSN
+        logger.info("Exporting DSN: %s", dsn_path)
         board = pcbnew.LoadBoard(str(pcb_path))
+        result = pcbnew.ExportSpecctraDSN(board, str(dsn_path))
+        if not result:
+            raise RuntimeError("Failed to export Specctra DSN")
 
-        # Calculate power trace width
-        power_width_mm = max(
-            default_width_mm,
-            trace_width_for_current(design.spec.output_current),
+        # Step 2: Run Freerouting
+        logger.info("Running Freerouting (max %d passes)...", self._max_passes)
+        cmd = [
+            "java", "-jar", str(self._jar),
+            "-de", str(dsn_path),
+            "-do", str(ses_path),
+            "-mp", str(self._max_passes),
+        ]
+
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(self._jar.parent),
         )
-        logger.info(
-            "Trace widths: signal=%.2fmm, power=%.2fmm",
-            default_width_mm, power_width_mm,
-        )
 
-        # Build a map of net name -> pad positions
-        net_pads = self._collect_net_pads(board)
+        if not ses_path.exists():
+            logger.error("Freerouting stderr: %s", proc.stderr[-500:] if proc.stderr else "")
+            raise RuntimeError("Freerouting did not produce SES output")
 
-        # Route each net
-        traces_added = 0
-        for net_name, pads in net_pads.items():
-            if len(pads) < 2:
-                continue
+        # Parse routing result from output
+        unrouted = self._parse_unrouted(proc.stdout + proc.stderr)
+        logger.info("Freerouting complete. Unrouted: %d", unrouted)
 
-            is_power = net_name in _POWER_NETS
-            width = power_width_mm if is_power else default_width_mm
-            width_nm = pcbnew.FromMM(width)
-
-            # Get the net code
-            net_info = board.GetNetInfo().GetNetItem(net_name)
-            if net_info is None:
-                continue
-            net_code = net_info.GetNetCode()
-
-            # Connect pads in chain (pad0->pad1->pad2->...)
-            for i in range(len(pads) - 1):
-                start = pads[i]
-                end = pads[i + 1]
-
-                # Create L-shaped route (horizontal then vertical)
-                mid = pcbnew.VECTOR2I(end.x, start.y)
-
-                # First segment: horizontal
-                track1 = pcbnew.PCB_TRACK(board)
-                track1.SetStart(start)
-                track1.SetEnd(mid)
-                track1.SetWidth(width_nm)
-                track1.SetLayer(pcbnew.F_Cu)
-                track1.SetNetCode(net_code)
-                board.Add(track1)
-
-                # Second segment: vertical
-                track2 = pcbnew.PCB_TRACK(board)
-                track2.SetStart(mid)
-                track2.SetEnd(end)
-                track2.SetWidth(width_nm)
-                track2.SetLayer(pcbnew.F_Cu)
-                track2.SetNetCode(net_code)
-                board.Add(track2)
-
-                traces_added += 2
-
-            logger.info(
-                "Routed %s: %d pads, width=%.2fmm%s",
-                net_name, len(pads), width,
-                " (power)" if is_power else "",
-            )
+        # Step 3: Import SES back into board
+        logger.info("Importing SES: %s", ses_path)
+        board = pcbnew.LoadBoard(str(pcb_path))
+        result = pcbnew.ImportSpecctraSES(board, str(ses_path))
+        if not result:
+            raise RuntimeError("Failed to import Specctra SES")
 
         board.Save(str(pcb_path))
-        logger.info("Saved board with %d traces: %s", traces_added, pcb_path)
+        logger.info("Board saved with routes: %s", pcb_path)
+
+        # Clean up temp files
+        dsn_path.unlink(missing_ok=True)
+        ses_path.unlink(missing_ok=True)
+
         return pcb_path
 
-    def _collect_net_pads(
-        self, board: object
-    ) -> dict[str, list[object]]:
-        """Collect pad positions grouped by net name."""
-        net_pads: dict[str, list[object]] = {}
+    def _parse_unrouted(self, output: str) -> int:
+        """Parse the number of unrouted connections from Freerouting output."""
+        import re
 
-        for fp in board.GetFootprints():
-            for pad in fp.Pads():
-                net_name = pad.GetNetname()
-                if not net_name:
-                    continue
-                if net_name not in net_pads:
-                    net_pads[net_name] = []
-                net_pads[net_name].append(pad.GetPosition())
-
-        return net_pads
+        # Look for last occurrence of "X unrouted"
+        matches = re.findall(r"\((\d+) unrouted\)", output)
+        if matches:
+            return int(matches[-1])
+        return -1
