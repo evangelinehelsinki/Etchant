@@ -53,6 +53,12 @@ data/*.db
 data/*.sqlite3
 data/*.csv
 
+# Freerouting
+tools/freerouting.jar
+tools/freerouting.json
+*.dsn
+*.ses
+
 # SKiDL artifacts
 *.erc
 *.log
