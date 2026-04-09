@@ -107,7 +107,7 @@ class LM2596BuckConverter:
                 reference="L1",
                 category=ComponentCategory.INDUCTOR,
                 value="33uH",
-                footprint="Inductor_THT:L_Radial_D12.5mm_P9.00mm",
+                footprint="Inductor_THT:L_Radial_D12.0mm_P5.00mm_Fastron_11P",
                 kicad_library="Device",
                 kicad_symbol="L",
                 description="Energy storage inductor, 33uH 3A saturation",

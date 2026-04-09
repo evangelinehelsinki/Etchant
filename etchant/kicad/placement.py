@@ -57,12 +57,14 @@ class ComponentPlacer:
 
         board = pcbnew.BOARD()
 
-        # Auto-size board based on component count
+        # Auto-size board based on component count and type
         n = len(design.components)
+        tht_count = sum(1 for c in design.components if "_THT:" in c.footprint)
+        spacing = 5.0 + tht_count * 3.0  # More THT = more spacing needed
         if board_width_mm is None:
-            board_width_mm = max(20.0, 10.0 + n * 5.0)
+            board_width_mm = max(25.0, 15.0 + n * spacing)
         if board_height_mm is None:
-            board_height_mm = max(15.0, 8.0 + n * 4.0)
+            board_height_mm = max(20.0, 12.0 + n * (spacing * 0.8))
 
         # Load and place footprints
         positions = self._calculate_positions(design, board_width_mm, board_height_mm)
@@ -147,6 +149,22 @@ class ComponentPlacer:
                         assigned += 1
                         continue
 
+                # Passive pin name -> pad number mapping
+                _PASSIVE_PIN_MAP = {
+                    "A": "1", "K": "2",  # Diodes
+                }
+                mapped = False
+                for pin_alias, target_pad in _PASSIVE_PIN_MAP.items():
+                    if pad_num == target_pad and (ref, pin_alias) in pin_nets:
+                        ni = net_items.get(pin_nets[(ref, pin_alias)])
+                        if ni:
+                            pad.SetNet(ni)
+                            assigned += 1
+                            mapped = True
+                            break
+                if mapped:
+                    continue
+
                 # For ICs: find which pin name maps to this pad number
                 if comp.category.name == "IC":
                     for (r, pin_name), net_name in pin_nets.items():
@@ -226,10 +244,12 @@ class ComponentPlacer:
             if comp.reference in positions:
                 continue
 
-            distance = 8.0
+            is_tht = "_THT:" in comp.footprint
+            base_distance = 15.0 if is_tht else 8.0
+            distance = base_distance
             for pc in design.placement_constraints:
                 if pc.component_ref == comp.reference:
-                    distance = min(pc.max_distance_mm, 10.0)
+                    distance = max(base_distance, min(pc.max_distance_mm, 18.0))
                     break
 
             rad = math.radians(current_angle)
