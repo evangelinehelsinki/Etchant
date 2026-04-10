@@ -111,10 +111,12 @@ def _place_buck(design: DesignResult) -> tuple[dict[str, Position], float, float
         lx = cx + ic_to_ind if inductor else cx + 6
         positions[c_out] = Position(lx + ind_to_cout, cy - 1, 90)
 
-    # Feedback resistors: below IC, near FB pin
-    fb_y = cy + ic_size[1] / 2 + 3
+    # Feedback resistors: below IC, near FB pin (4.5mm spacing for 0805 courtyards)
+    res_size = _get_footprint_size(design, resistors[0] if resistors else None)
+    fb_y = cy + ic_size[1] / 2 + res_size[1] / 2 + 2.0
+    res_spacing = max(4.5, res_size[0] + 1.5)
     for i, ref in enumerate(resistors):
-        positions[ref] = Position(cx - 1 + i * 3.5, fb_y)
+        positions[ref] = Position(cx - 1 + i * res_spacing, fb_y)
 
     # Diodes: below and right of IC
     for i, ref in enumerate(diodes):
@@ -141,19 +143,26 @@ def _place_ldo(design: DesignResult) -> tuple[dict[str, Position], float, float]
     cap_to_ic = (cap_size[1] / 2 + ic_size[1] / 2 + _MIN_CLEARANCE)
     cap_to_ic = _get_constraint_distance(design, c_in, cap_to_ic)
 
-    cx = _PAGE_X + ic_size[0] / 2 + 5
-    cy = _PAGE_Y + cap_to_ic + 3
+    # Cap offset: place caps adjacent to IC pins using actual dimensions
+    cap_offset_x = ic_size[0] / 2 + cap_size[0] / 2 + 0.5
+
+    cx = _PAGE_X + 10
+    cy = _PAGE_Y + cap_to_ic + 5
 
     if c_in:
-        positions[c_in] = Position(cx + 3, cy - cap_to_ic, 90)
+        positions[c_in] = Position(cx + cap_offset_x, cy - cap_to_ic, 90)
     if ic:
         positions[ic] = Position(cx, cy)
     if c_out:
-        positions[c_out] = Position(cx + 3, cy + cap_to_ic, 90)
+        positions[c_out] = Position(cx + cap_offset_x, cy + cap_to_ic, 90)
 
     # Feedback resistors to the right
+    res_size = _get_footprint_size(design, resistors[0] if resistors else None)
     for i, ref in enumerate(resistors):
-        positions[ref] = Position(cx + ic_size[0] / 2 + 4, cy - 1 + i * 3)
+        positions[ref] = Position(
+            cx + ic_size[0] / 2 + res_size[0] / 2 + 2,
+            cy - 1 + i * max(4.5, res_size[1] + 1.5),
+        )
 
     return _finalize(positions)
 
@@ -245,24 +254,26 @@ def _get_constraint_distance(
 
 def _finalize(
     positions: dict[str, Position],
+    max_footprint_extent: float = 8.0,
 ) -> tuple[dict[str, Position], float, float]:
-    """Calculate board size and center components within it."""
+    """Calculate board size accounting for footprint extents, not just centers."""
     if not positions:
-        return positions, 30.0, 25.0
+        return positions, 35.0, 30.0
 
     all_x = [p.x for p in positions.values()]
     all_y = [p.y for p in positions.values()]
 
-    # Board size: span of component centers + generous margin for
-    # footprints, routing space, and board edge clearance
-    margin = 12.0
+    # Margin = half largest footprint + routing space + board edge clearance
+    # max_footprint_extent covers half the largest component body
+    margin = max_footprint_extent + 5.0  # 5mm routing + edge clearance
+
     span_x = max(all_x) - min(all_x)
     span_y = max(all_y) - min(all_y)
 
-    board_w = max(28.0, span_x + 2 * margin)
-    board_h = max(22.0, span_y + 2 * margin)
+    board_w = max(30.0, span_x + 2 * margin)
+    board_h = max(25.0, span_y + 2 * margin)
 
-    # Center all positions on the page
+    # Center components on board
     center_x = (max(all_x) + min(all_x)) / 2
     center_y = (max(all_y) + min(all_y)) / 2
     target_x = _PAGE_X + board_w / 2
