@@ -93,7 +93,7 @@ def run_design(name, topology_cls, vin, vout, iout):
     placer.create_board(design, pcb_path)
     print(f"  PCB: {pcb_path} ({pcb_path.stat().st_size} bytes)")
 
-    # Route traces with Freerouting autorouter
+    # Autoroute with Freerouting
     from etchant.kicad.router import FreeroutingRouter, check_freerouting_available
     if check_freerouting_available():
         router = FreeroutingRouter(max_passes=20)

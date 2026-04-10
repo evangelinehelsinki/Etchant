@@ -62,11 +62,16 @@ class FreeroutingRouter:
         logger.info("Exporting DSN: %s", dsn_path)
         board = pcbnew.LoadBoard(str(pcb_path))
 
-        # Set clearance rules for Freerouting
+        # Apply JLCPCB manufacturing rules to board design settings
+        # Source: constraints/jlcpcb_manufacturing.yaml
         settings = board.GetDesignSettings()
         settings.SetCopperLayerCount(2)
-        settings.m_MinClearance = pcbnew.FromMM(0.3)  # 0.3mm clearance
-        settings.m_TrackMinWidth = pcbnew.FromMM(0.25)
+        # JLCPCB manufacturing minimums (from jlcpcb_manufacturing.yaml)
+        settings.m_MinClearance = pcbnew.FromMM(0.2)
+        settings.m_TrackMinWidth = pcbnew.FromMM(0.127)
+        settings.m_ViasMinSize = pcbnew.FromMM(0.6)
+        settings.m_ViasMinDrill = pcbnew.FromMM(0.3)
+        settings.m_MinThroughDrill = pcbnew.FromMM(0.2)
 
         result = pcbnew.ExportSpecctraDSN(board, str(dsn_path))
         if not result:
