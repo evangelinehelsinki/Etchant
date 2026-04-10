@@ -57,17 +57,20 @@ class ComponentPlacer:
 
         board = pcbnew.BOARD()
 
-        # Auto-size board based on component count and type
-        n = len(design.components)
-        tht_count = sum(1 for c in design.components if "_THT:" in c.footprint)
-        spacing = 5.0 + tht_count * 3.0  # More THT = more spacing needed
-        if board_width_mm is None:
-            board_width_mm = max(25.0, 15.0 + n * spacing)
-        if board_height_mm is None:
-            board_height_mm = max(20.0, 12.0 + n * (spacing * 0.8))
+        # Use topology-aware placement for power circuits
+        from etchant.kicad.power_placement import calculate_power_placement
 
-        # Load and place footprints
-        positions = self._calculate_positions(design, board_width_mm, board_height_mm)
+        power_positions, auto_w, auto_h = calculate_power_placement(design)
+        if board_width_mm is None:
+            board_width_mm = auto_w
+        if board_height_mm is None:
+            board_height_mm = auto_h
+
+        # Convert Position objects to tuples
+        positions = {
+            ref: (p.x, p.y, p.rotation)
+            for ref, p in power_positions.items()
+        }
 
         for comp in design.components:
             fp = self._load_footprint(board, comp.footprint)
