@@ -246,33 +246,33 @@ def _get_constraint_distance(
 def _finalize(
     positions: dict[str, Position],
 ) -> tuple[dict[str, Position], float, float]:
-    """Calculate board size from placed positions and add margins."""
+    """Calculate board size and center components within it."""
     if not positions:
-        return positions, 20.0, 15.0
+        return positions, 30.0, 25.0
 
-    all_x = [p.x - _PAGE_X for p in positions.values()]
-    all_y = [p.y - _PAGE_Y for p in positions.values()]
+    all_x = [p.x for p in positions.values()]
+    all_y = [p.y for p in positions.values()]
 
-    min_x = min(all_x) - 4
-    max_x = max(all_x) + 4
-    min_y = min(all_y) - 4
-    max_y = max(all_y) + 4
+    # Board size: span of component centers + generous margin for
+    # footprints, routing space, and board edge clearance
+    margin = 12.0
+    span_x = max(all_x) - min(all_x)
+    span_y = max(all_y) - min(all_y)
 
-    board_w = max(18.0, max_x - min_x + 6)
-    board_h = max(14.0, max_y - min_y + 6)
+    board_w = max(28.0, span_x + 2 * margin)
+    board_h = max(22.0, span_y + 2 * margin)
 
-    # Shift positions so board starts near page offset
-    offset_x = _PAGE_X - min_x + 3
-    offset_y = _PAGE_Y - min_y + 3
+    # Center all positions on the page
+    center_x = (max(all_x) + min(all_x)) / 2
+    center_y = (max(all_y) + min(all_y)) / 2
+    target_x = _PAGE_X + board_w / 2
+    target_y = _PAGE_Y + board_h / 2
+    shift_x = target_x - center_x
+    shift_y = target_y - center_y
 
-    shifted = {
-        ref: Position(p.x + offset_x - _PAGE_X, p.y + offset_y - _PAGE_Y, p.rotation)
-        for ref, p in positions.items()
-    }
-    # Re-add page offset
     final = {
-        ref: Position(p.x + _PAGE_X, p.y + _PAGE_Y, p.rotation)
-        for ref, p in shifted.items()
+        ref: Position(p.x + shift_x, p.y + shift_y, p.rotation)
+        for ref, p in positions.items()
     }
 
     return final, board_w, board_h
