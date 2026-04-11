@@ -1,0 +1,91 @@
+ic: TPS563200
+package: SOT-23-6
+datasheet: "TI SLVSCB0E"
+switching_frequency_khz: 650
+
+pinout:
+  1: {name: "GND", type: "ground"}
+  2: {name: "SW", type: "switch_out"}
+  3: {name: "VIN", type: "power_in"}
+  4: {name: "VFB", type: "feedback"}
+  5: {name: "EN", type: "control"}
+  6: {name: "VBST", type: "bootstrap"}
+
+placement_constraints:
+  - component: "C_in"
+    relative_to: "IC"
+    max_distance_mm: 3
+    preferred_distance_mm: 1.5
+    preferred_side: "left"
+    notes: "Input cap as close to VIN/GND pins as possible (TI rule #2)"
+
+  - component: "C_out"
+    relative_to: "IC"
+    max_distance_mm: 5
+    preferred_distance_mm: 2
+    preferred_side: "right"
+    notes: "Output cap close to device, on output side (TI rule #2)"
+
+  - component: "L1"
+    relative_to: "IC"
+    max_distance_mm: 5
+    preferred_distance_mm: 2
+    preferred_side: "right"
+    notes: "Keep SW trace short and wide (TI rule #4)"
+
+  - component: "R_fb_top"
+    relative_to: "IC"
+    max_distance_mm: 8
+    preferred_distance_mm: 3
+    preferred_side: "below"
+    notes: "Feedback resistor near VFB pin, away from SW node (TI rules #8, #9)"
+
+  - component: "R_fb_bot"
+    relative_to: "R_fb_top"
+    max_distance_mm: 4
+    preferred_distance_mm: 2
+    notes: "Feedback divider grouped together"
+
+routing_rules:
+  power_trace_min_width_mm: 0.5
+  ground_plane: true
+  ground_trace_width_mm: 1.0
+  sw_trace_short_and_wide: true
+  sensitive_traces:
+    - net: "VFB"
+      keep_away_from: ["SW", "L1"]
+      max_length_mm: 15
+      notes: "VFB trace as small as possible, away from switching trace (TI rules #8, #9)"
+  layout_rules:
+    - "VIN and GND traces as wide as possible (TI rule #1)"
+    - "No switching current under device (TI rule #5)"
+    - "Separate VOUT path to feedback resistor (TI rule #6)"
+    - "Kelvin GND connection for feedback path (TI rule #7)"
+    - "Wide GND trace between output cap and GND pin (TI rule #10)"
+
+thermal:
+  ground_pad_vias: 2
+  copper_pour_under_ic: false
+  notes: "No switching current under device"
+
+reference_design:
+  # From Table 8-4 in datasheet
+  input_voltage_range_v: [4.5, 17.0]
+  max_output_current_a: 3.0
+  switching_frequency_khz: 650
+  recommended_components:
+    "5.0V":
+      R_fb_top: {value: "54.9k", package: "0402"}
+      R_fb_bot: {value: "10k", package: "0402"}
+      L1: {value: "3.3uH", min: "2.2", typ: "3.3", max: "4.7"}
+      C_out: {value: "66uF", notes: "3x 22uF ceramic"}
+    "3.3V":
+      R_fb_top: {value: "33.2k", package: "0402"}
+      R_fb_bot: {value: "10k", package: "0402"}
+      L1: {value: "2.2uH", min: "1.5", typ: "2.2", max: "4.7"}
+      C_out: {value: "66uF", notes: "3x 22uF ceramic"}
+    "1.8V":
+      R_fb_top: {value: "13.7k", package: "0402"}
+      R_fb_bot: {value: "10k", package: "0402"}
+      L1: {value: "1.5uH", min: "1.0", typ: "1.5", max: "4.7"}
+      C_out: {value: "66uF", notes: "3x 22uF ceramic"}

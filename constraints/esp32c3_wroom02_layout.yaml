@@ -1,0 +1,118 @@
+ic: ESP32-C3-WROOM-02
+package: "Custom module 18x20mm"
+datasheet: "Espressif ESP32-C3-WROOM-02 v1.7"
+
+module_dimensions:
+  width_mm: 18.0
+  height_mm: 20.0
+  thickness_mm: 3.2
+
+antenna:
+  type: "PCB meander antenna (on-board)"
+  location: "top edge of module"
+  keep_out_zone:
+    # No copper, components, or ground plane within this zone
+    # Measured from the top edge of the module
+    extend_above_mm: 5.0
+    extend_sides_mm: 3.0
+    notes: "No copper pour, traces, or components in antenna area. This includes the top ~6mm of the module body plus 5mm above."
+
+pinout:
+  1: {name: "3V3", type: "power_in", side: "bottom-left"}
+  2: {name: "EN", type: "control", side: "bottom-left"}
+  3: {name: "IO4", type: "gpio", side: "left"}
+  4: {name: "IO5", type: "gpio", side: "left"}
+  5: {name: "IO6", type: "gpio", side: "left"}
+  6: {name: "IO7", type: "gpio", side: "left"}
+  7: {name: "IO8", type: "gpio", side: "left"}
+  8: {name: "IO9", type: "gpio", side: "left"}
+  9: {name: "GND", type: "ground", side: "bottom"}
+  10: {name: "IO10", type: "gpio", side: "right"}
+  11: {name: "IO20/RXD", type: "uart_rx", side: "right"}
+  12: {name: "IO21/TXD", type: "uart_tx", side: "right"}
+  13: {name: "IO18", type: "gpio_usb_d-", side: "right"}
+  14: {name: "IO19", type: "gpio_usb_d+", side: "right"}
+  15: {name: "IO3", type: "gpio", side: "right"}
+  16: {name: "IO2", type: "gpio", side: "right"}
+  17: {name: "IO1", type: "gpio", side: "right"}
+  18: {name: "IO0", type: "gpio_strapping", side: "right"}
+  19: {name: "GND", type: "ground", side: "bottom-right"}
+  epad: {name: "GND", type: "ground", side: "bottom"}
+
+placement_constraints:
+  - component: "C_bulk"
+    relative_to: "IC"
+    max_distance_mm: 5
+    preferred_distance_mm: 2
+    preferred_side: "below"
+    notes: "10uF bulk decoupling near 3V3 pin (bottom-left)"
+
+  - component: "C_hf"
+    relative_to: "IC"
+    max_distance_mm: 3
+    preferred_distance_mm: 1
+    preferred_side: "below"
+    notes: "100nF HF decoupling adjacent to 3V3 pin"
+
+  - component: "R_en"
+    relative_to: "IC"
+    max_distance_mm: 5
+    preferred_side: "below"
+    notes: "EN pull-up resistor near EN pin (pin 2)"
+
+  - component: "J_prog"
+    relative_to: "IC"
+    max_distance_mm: 20
+    preferred_side: "left"
+    notes: "Programming header on left edge, near UART/EN pins"
+
+  - component: "J_gpio"
+    relative_to: "IC"
+    max_distance_mm: 20
+    preferred_side: "right"
+    notes: "GPIO breakout header on right edge, near GPIO pins"
+
+  - component: "U_ldo"
+    relative_to: "IC"
+    max_distance_mm: 15
+    preferred_side: "below-left"
+    notes: "Power supply section below-left, away from antenna"
+
+  - component: "LED"
+    relative_to: "IC"
+    max_distance_mm: 15
+    preferred_side: "below"
+    notes: "Status LED below module, away from antenna"
+
+routing_rules:
+  ground_plane: true
+  ground_plane_layer: "B.Cu"
+  uart_trace_max_length_mm: 30
+  sensitive_traces:
+    - net: "USB_D+"
+      keep_away_from: ["VIN", "SW"]
+      max_length_mm: 50
+      notes: "USB differential pair, keep short and matched"
+    - net: "USB_D-"
+      keep_away_from: ["VIN", "SW"]
+      max_length_mm: 50
+      notes: "USB differential pair, keep short and matched"
+
+thermal:
+  epad_vias: 4
+  via_diameter_mm: 0.3
+  copper_pour_under_module: true
+  notes: "Thermal pad on bottom, connect to ground plane with vias"
+
+reference_design:
+  # From Figure 9-1 Peripheral Schematics
+  power_supply: "3.0-3.6V on 3V3 pin"
+  decoupling:
+    C1: {value: "10uF", type: "ceramic", notes: "bulk decoupling"}
+    C2: {value: "100nF", type: "ceramic", notes: "HF decoupling"}
+  en_circuit:
+    R: {value: "10k", notes: "EN pull-up to VDD33"}
+    C: {value: "1uF", notes: "RC delay for power-up stability (optional)"}
+  boot_mode:
+    IO9: "strapping pin — high for SPI boot (normal), low for download"
+    IO8: "strapping pin — controls UART printing"
