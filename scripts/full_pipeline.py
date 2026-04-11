@@ -105,6 +105,23 @@ def run_design(name, topology_cls, vin, vout, iout):
     else:
         print("  Routing skipped: Freerouting not available")
 
+    # Render PCB as SVG for visual inspection
+    svg_path = pcb_path.with_suffix(".svg")
+    try:
+        import subprocess
+        subprocess.run([
+            "kicad-cli", "pcb", "export", "svg",
+            "--layers", "F.Cu,B.Cu,Edge.Cuts,F.SilkS",
+            "--fit-page-to-board",
+            "--exclude-drawing-sheet",
+            "-o", str(svg_path),
+            str(pcb_path),
+        ], capture_output=True, timeout=30)
+        if svg_path.exists():
+            print(f"  Render: {svg_path} ({svg_path.stat().st_size} bytes)")
+    except Exception as e:
+        print(f"  Render skipped: {e}")
+
     # Design notes
     for note in design.design_notes:
         print(f"  Note: {note}")
@@ -112,7 +129,7 @@ def run_design(name, topology_cls, vin, vout, iout):
     return out_dir
 
 
-# Run three demo designs
+# Run demo designs
 dirs = []
 
 dirs.append(run_design(
@@ -125,6 +142,20 @@ dirs.append(run_design(
     "buck_12v_to_5v",
     GenerativeBuckConverter,
     12.0, 5.0, 2.0,
+))
+
+from etchant.circuits.led_driver import LEDDriverCircuit
+dirs.append(run_design(
+    "led_5v_20ma",
+    LEDDriverCircuit,
+    5.0, 2.0, 0.02,
+))
+
+from etchant.circuits.sensor_breakout import I2CSensorBreakout
+dirs.append(run_design(
+    "bme280_breakout",
+    I2CSensorBreakout,
+    3.3, 0.0, 0.0,
 ))
 
 # Zip everything
