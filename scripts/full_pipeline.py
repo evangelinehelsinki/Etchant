@@ -151,11 +151,11 @@ dirs.append(run_design(
     5.0, 2.0, 0.02,
 ))
 
-from etchant.circuits.sensor_breakout import I2CSensorBreakout
+from etchant.circuits.mcu_breakout import ESP32C3Breakout
 dirs.append(run_design(
-    "bme280_breakout",
-    I2CSensorBreakout,
-    3.3, 0.0, 0.0,
+    "esp32c3_breakout",
+    ESP32C3Breakout,
+    5.0, 3.3, 0.5,
 ))
 
 # Zip everything

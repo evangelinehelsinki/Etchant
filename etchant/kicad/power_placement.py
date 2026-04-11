@@ -70,6 +70,8 @@ def calculate_power_placement(
         return _place_led_driver(design)
     if "sensor" in topology:
         return _place_sensor_breakout(design)
+    if "mcu" in topology:
+        return _place_mcu_breakout(design)
     return _place_grid(design)
 
 
@@ -303,6 +305,64 @@ def _place_sensor_breakout(
             cx + ic_size[0] / 2 + 3,
             cy - 2 + i * 4,
         )
+
+    return _finalize(positions)
+
+
+def _place_mcu_breakout(
+    design: DesignResult,
+) -> tuple[dict[str, Position], float, float]:
+    """Place MCU breakout: headers on edges, MCU center, power section nearby.
+
+    Layout:
+      J1(prog header)  |  U2(LDO) C3  |  U1(MCU)  |  J2(GPIO header)
+                        |  C1 C2       |  R1 D1 R2 |
+    """
+    positions: dict[str, Position] = {}
+
+    # Categorize components by reference
+    comp_map = {c.reference: c for c in design.components}
+
+    cx = _PAGE_X + 25  # MCU center
+    cy = _PAGE_Y + 15
+
+    # MCU in center
+    if "U1" in comp_map:
+        positions["U1"] = Position(cx, cy)
+
+    # Programming header J1 on left edge
+    if "J1" in comp_map:
+        positions["J1"] = Position(cx - 18, cy)
+
+    # GPIO header J2 on right edge
+    if "J2" in comp_map:
+        positions["J2"] = Position(cx + 18, cy)
+
+    # LDO U2 between J1 and MCU
+    if "U2" in comp_map:
+        positions["U2"] = Position(cx - 10, cy - 4)
+
+    # LDO input cap C3 near LDO
+    if "C3" in comp_map:
+        positions["C3"] = Position(cx - 13, cy - 4, 90)
+
+    # Bulk decoupling C1 near MCU
+    if "C1" in comp_map:
+        positions["C1"] = Position(cx - 5, cy - 5, 90)
+
+    # HF decoupling C2 adjacent to MCU
+    if "C2" in comp_map:
+        positions["C2"] = Position(cx - 3, cy - 4, 90)
+
+    # EN pull-up R1 near MCU
+    if "R1" in comp_map:
+        positions["R1"] = Position(cx + 5, cy - 5)
+
+    # LED D1 and resistor R2 below MCU
+    if "D1" in comp_map:
+        positions["D1"] = Position(cx + 3, cy + 7)
+    if "R2" in comp_map:
+        positions["R2"] = Position(cx, cy + 7)
 
     return _finalize(positions)
 
