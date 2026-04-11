@@ -57,20 +57,14 @@ class ComponentPlacer:
 
         board = pcbnew.BOARD()
 
-        # Use topology-aware placement for power circuits
-        from etchant.kicad.power_placement import calculate_power_placement
+        # Use generic constraint-driven placement
+        from etchant.kicad.constraint_placer import constraint_place
 
-        power_positions, auto_w, auto_h = calculate_power_placement(design)
+        positions, auto_w, auto_h = constraint_place(design)
         if board_width_mm is None:
             board_width_mm = auto_w
         if board_height_mm is None:
             board_height_mm = auto_h
-
-        # Convert Position objects to tuples
-        positions = {
-            ref: (p.x, p.y, p.rotation)
-            for ref, p in power_positions.items()
-        }
 
         for comp in design.components:
             fp = self._load_footprint(board, comp.footprint)
