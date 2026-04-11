@@ -211,7 +211,7 @@ def _place_boost(design: DesignResult) -> tuple[dict[str, Position], float, floa
 
 
 def _place_led_driver(design: DesignResult) -> tuple[dict[str, Position], float, float]:
-    """Place LED driver: linear flow connector -> R -> LED or Cin -> IC -> L -> D -> LED."""
+    """Place LED driver in a straight line following current flow."""
     positions: dict[str, Position] = {}
 
     ic = _find_by_category(design, ComponentCategory.IC)
@@ -221,36 +221,47 @@ def _place_led_driver(design: DesignResult) -> tuple[dict[str, Position], float,
     inductors = _find_all_by_category(design, ComponentCategory.INDUCTOR)
     caps = _find_all_by_category(design, ComponentCategory.CAPACITOR)
 
-    cx = _PAGE_X + 10
-    cy = _PAGE_Y + 8
-    step = 6.0
-
-    # Place left to right following current flow
-    x = cx
-    for ref in connectors:
-        positions[ref] = Position(x, cy)
-        x += step
+    cx = _PAGE_X + 5
+    cy = _PAGE_Y + 5
+    step = 5.0
 
     if ic:
+        # Boost LED driver: Cin -> IC -> L -> D -> LED, R below
+        x = cx
+        for ref in connectors:
+            positions[ref] = Position(x, cy)
+            x += step
         if caps:
-            positions[caps[0]] = Position(x, cy - 3, 90)
-        positions[ic] = Position(x + step, cy)
-        x += step * 2
-    if inductors:
-        positions[inductors[0]] = Position(x, cy)
+            positions[caps[0]] = Position(x, cy, 90)
+            x += step
+        positions[ic] = Position(x, cy)
         x += step
+        for ref in inductors:
+            positions[ref] = Position(x, cy)
+            x += step
+        for ref in diodes:
+            positions[ref] = Position(x, cy)
+            x += step
+        # Sense resistor below IC
+        for i, ref in enumerate(resistors):
+            if ref not in positions:
+                positions[ref] = Position(
+                    positions[ic].x + i * 4.5, cy + 4,
+                )
+    else:
+        # Simple resistor-limited: J1 -> R1 -> D1 straight line
+        x = cx
+        for ref in connectors:
+            positions[ref] = Position(x, cy)
+            x += step
+        for ref in resistors:
+            positions[ref] = Position(x, cy)
+            x += step
+        for ref in diodes:
+            positions[ref] = Position(x, cy)
+            x += step
 
-    # Remaining diodes (Schottky + LED)
-    for ref in diodes:
-        positions[ref] = Position(x, cy)
-        x += step
-
-    # Resistors below the main flow
-    for i, ref in enumerate(resistors):
-        if ref not in positions:
-            positions[ref] = Position(cx + step + i * 4.5, cy + 5)
-
-    # Remaining caps
+    # Any remaining caps
     for ref in caps:
         if ref not in positions:
             positions[ref] = Position(cx + step, cy - 3, 90)
@@ -353,9 +364,14 @@ def _finalize(
     all_x = [p.x for p in positions.values()]
     all_y = [p.y for p in positions.values()]
 
-    # Margin = half largest footprint + routing space + board edge clearance
-    # max_footprint_extent covers half the largest component body
-    margin = max_footprint_extent + 5.0  # 5mm routing + edge clearance
+    # Scale margin with component count — small circuits need less space
+    n = len(positions)
+    if n <= 3:
+        margin = 4.0  # Tiny boards: just edge clearance
+    elif n <= 5:
+        margin = 6.0  # Small boards
+    else:
+        margin = max_footprint_extent + 3.0  # Larger boards need routing space
 
     span_x = max(all_x) - min(all_x)
     span_y = max(all_y) - min(all_y)
