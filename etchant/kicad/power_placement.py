@@ -270,8 +270,12 @@ def _finalize(
     span_x = max(all_x) - min(all_x)
     span_y = max(all_y) - min(all_y)
 
-    board_w = max(30.0, span_x + 2 * margin)
-    board_h = max(25.0, span_y + 2 * margin)
+    # Scale minimums with component count
+    n = len(positions)
+    min_w = 15.0 if n <= 4 else 25.0 if n <= 6 else 30.0
+    min_h = 13.0 if n <= 4 else 20.0 if n <= 6 else 25.0
+    board_w = max(min_w, span_x + 2 * margin)
+    board_h = max(min_h, span_y + 2 * margin)
 
     # Center components on board
     center_x = (max(all_x) + min(all_x)) / 2
