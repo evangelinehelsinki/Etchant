@@ -61,8 +61,29 @@ def constraint_place(
         dims = fp_dims[primary_ic]
         placed[primary_ic] = PlacedComponent(0, 0, 0, dims.width_mm, dims.height_mm)
 
-    # Step 2: Place constrained components relative to their targets
-    for pc in design.placement_constraints:
+    # Step 2: Place secondary ICs (e.g., LDO on an MCU board)
+    for comp in design.components:
+        if comp.category == ComponentCategory.IC and comp.reference not in placed:
+            # Place secondary ICs adjacent to the primary, preferring left side
+            # (power section typically left of main IC)
+            if primary_ic and primary_ic in placed:
+                _place_adjacent(
+                    comp.reference, primary_ic, 15.0,
+                    placed, fp_dims,
+                )
+            else:
+                dims = fp_dims[comp.reference]
+                placed[comp.reference] = PlacedComponent(
+                    -15, 0, 0, dims.width_mm, dims.height_mm,
+                )
+
+    # Step 3: Place constrained components relative to their targets
+    # Sort by distance constraint (tightest first for best placement)
+    sorted_constraints = sorted(
+        design.placement_constraints,
+        key=lambda pc: pc.max_distance_mm,
+    )
+    for pc in sorted_constraints:
         ref = pc.component_ref
         if ref in placed or ref not in fp_dims:
             continue
@@ -74,15 +95,19 @@ def constraint_place(
                 placed, fp_dims,
             )
 
-    # Step 3: Place connectors at board edges
+    # Step 4: Place connectors at board edges
     for comp in design.components:
         if comp.category == ComponentCategory.CONNECTOR and comp.reference not in placed:
             _place_at_edge(comp.reference, placed, fp_dims, design)
 
-    # Step 4: Place remaining components in empty space
+    # Step 5: Place remaining components near their most-connected neighbor
+    # (Ott: minimize loop area by placing connected components close)
+    net_neighbors = _build_net_neighbors(design)
     for comp in design.components:
         if comp.reference not in placed:
-            _place_remaining(comp.reference, placed, fp_dims)
+            _place_near_neighbor(
+                comp.reference, placed, fp_dims, net_neighbors,
+            )
 
     # Step 5: Calculate board size and convert to page coordinates
     return _to_page_coords(placed)
@@ -196,27 +221,79 @@ def _place_at_edge(
     placed[ref] = PlacedComponent(cx, cy, 0, dims.width_mm, dims.height_mm)
 
 
-def _place_remaining(
+def _build_net_neighbors(
+    design: DesignResult,
+) -> dict[str, list[str]]:
+    """Build a map of component -> list of components sharing nets, ranked by connection count."""
+    # Count shared nets between each pair of components
+    shared: dict[tuple[str, str], int] = {}
+    for net in design.nets:
+        refs_in_net = [ref for ref, _pin in net.connections]
+        for i, r1 in enumerate(refs_in_net):
+            for r2 in refs_in_net[i + 1:]:
+                key = (min(r1, r2), max(r1, r2))
+                shared[key] = shared.get(key, 0) + 1
+
+    # Build neighbor list sorted by connection count (most connected first)
+    neighbors: dict[str, list[str]] = {}
+    all_refs = {c.reference for c in design.components}
+    for ref in all_refs:
+        ref_neighbors = []
+        for (r1, r2), count in shared.items():
+            if r1 == ref:
+                ref_neighbors.append((r2, count))
+            elif r2 == ref:
+                ref_neighbors.append((r1, count))
+        ref_neighbors.sort(key=lambda x: -x[1])
+        neighbors[ref] = [r for r, _ in ref_neighbors]
+
+    return neighbors
+
+
+def _place_near_neighbor(
     ref: str,
     placed: dict[str, PlacedComponent],
     fp_dims: dict[str, FootprintInfo],
+    net_neighbors: dict[str, list[str]],
 ) -> None:
-    """Place a component in the first non-overlapping position."""
+    """Place a component near its most-connected already-placed neighbor."""
     dims = fp_dims[ref]
 
-    # Try positions in a spiral around the center
+    # Find the best placed neighbor
+    best_neighbor = None
+    for neighbor_ref in net_neighbors.get(ref, []):
+        if neighbor_ref in placed:
+            best_neighbor = placed[neighbor_ref]
+            break
+
+    if best_neighbor is not None:
+        # Place adjacent to the best neighbor
+        gap = 2.0
+        candidates = [
+            (best_neighbor.x + best_neighbor.width / 2 + dims.width_mm / 2 + gap,
+             best_neighbor.y, 0),
+            (best_neighbor.x,
+             best_neighbor.y + best_neighbor.height / 2 + dims.height_mm / 2 + gap, 0),
+            (best_neighbor.x - best_neighbor.width / 2 - dims.width_mm / 2 - gap,
+             best_neighbor.y, 0),
+            (best_neighbor.x,
+             best_neighbor.y - best_neighbor.height / 2 - dims.height_mm / 2 - gap, 0),
+        ]
+        for cx, cy, rot in candidates:
+            if not _overlaps_any(cx, cy, dims.width_mm, dims.height_mm, placed):
+                placed[ref] = PlacedComponent(cx, cy, rot, dims.width_mm, dims.height_mm)
+                return
+
+    # Fallback: spiral search from center
     for radius in range(3, 30, 3):
         for angle in range(0, 360, 45):
             rad = math.radians(angle)
             cx = radius * math.cos(rad)
             cy = radius * math.sin(rad)
             if not _overlaps_any(cx, cy, dims.width_mm, dims.height_mm, placed):
-                placed[ref] = PlacedComponent(
-                    cx, cy, 0, dims.width_mm, dims.height_mm,
-                )
+                placed[ref] = PlacedComponent(cx, cy, 0, dims.width_mm, dims.height_mm)
                 return
 
-    # Absolute fallback
     placed[ref] = PlacedComponent(20, 0, 0, dims.width_mm, dims.height_mm)
 
 

@@ -57,10 +57,24 @@ class ComponentPlacer:
 
         board = pcbnew.BOARD()
 
-        # Use generic constraint-driven placement
-        from etchant.kicad.constraint_placer import constraint_place
+        # Hybrid placement: topology-specific for known circuits,
+        # generic constraint-driven for unknown ones
+        from etchant.kicad.power_placement import calculate_power_placement
 
-        positions, auto_w, auto_h = constraint_place(design)
+        topology = design.spec.topology
+        known_topologies = {"buck", "ldo", "boost", "led"}
+        use_topology_specific = any(t in topology for t in known_topologies)
+
+        if use_topology_specific:
+            power_positions, auto_w, auto_h = calculate_power_placement(design)
+            positions = {
+                ref: (p.x, p.y, p.rotation)
+                for ref, p in power_positions.items()
+            }
+        else:
+            from etchant.kicad.constraint_placer import constraint_place
+
+            positions, auto_w, auto_h = constraint_place(design)
         if board_width_mm is None:
             board_width_mm = auto_w
         if board_height_mm is None:
