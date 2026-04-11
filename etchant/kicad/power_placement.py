@@ -66,6 +66,10 @@ def calculate_power_placement(
         return _place_ldo(design)
     if "boost" in topology:
         return _place_boost(design)
+    if "led" in topology:
+        return _place_led_driver(design)
+    if "sensor" in topology:
+        return _place_sensor_breakout(design)
     return _place_grid(design)
 
 
@@ -202,6 +206,92 @@ def _place_boost(design: DesignResult) -> tuple[dict[str, Position], float, floa
     fb_y = cy + ic_size[1] / 2 + 3
     for i, ref in enumerate(resistors):
         positions[ref] = Position(cx - 1 + i * 3.5, fb_y)
+
+    return _finalize(positions)
+
+
+def _place_led_driver(design: DesignResult) -> tuple[dict[str, Position], float, float]:
+    """Place LED driver: linear flow connector -> R -> LED or Cin -> IC -> L -> D -> LED."""
+    positions: dict[str, Position] = {}
+
+    ic = _find_by_category(design, ComponentCategory.IC)
+    connectors = _find_all_by_category(design, ComponentCategory.CONNECTOR)
+    resistors = _find_all_by_category(design, ComponentCategory.RESISTOR)
+    diodes = _find_all_by_category(design, ComponentCategory.DIODE)
+    inductors = _find_all_by_category(design, ComponentCategory.INDUCTOR)
+    caps = _find_all_by_category(design, ComponentCategory.CAPACITOR)
+
+    cx = _PAGE_X + 10
+    cy = _PAGE_Y + 8
+    step = 6.0
+
+    # Place left to right following current flow
+    x = cx
+    for ref in connectors:
+        positions[ref] = Position(x, cy)
+        x += step
+
+    if ic:
+        if caps:
+            positions[caps[0]] = Position(x, cy - 3, 90)
+        positions[ic] = Position(x + step, cy)
+        x += step * 2
+    if inductors:
+        positions[inductors[0]] = Position(x, cy)
+        x += step
+
+    # Remaining diodes (Schottky + LED)
+    for ref in diodes:
+        positions[ref] = Position(x, cy)
+        x += step
+
+    # Resistors below the main flow
+    for i, ref in enumerate(resistors):
+        if ref not in positions:
+            positions[ref] = Position(cx + step + i * 4.5, cy + 5)
+
+    # Remaining caps
+    for ref in caps:
+        if ref not in positions:
+            positions[ref] = Position(cx + step, cy - 3, 90)
+
+    return _finalize(positions)
+
+
+def _place_sensor_breakout(
+    design: DesignResult,
+) -> tuple[dict[str, Position], float, float]:
+    """Place I2C sensor breakout: header on left, sensor center, caps/pullups right."""
+    positions: dict[str, Position] = {}
+
+    ic = _find_by_category(design, ComponentCategory.IC)
+    connectors = _find_all_by_category(design, ComponentCategory.CONNECTOR)
+    caps = _find_all_by_category(design, ComponentCategory.CAPACITOR)
+    resistors = _find_all_by_category(design, ComponentCategory.RESISTOR)
+
+    ic_size = _get_footprint_size(design, ic)
+
+    cx = _PAGE_X + 12
+    cy = _PAGE_Y + 8
+
+    # Header on left edge
+    for ref in connectors:
+        positions[ref] = Position(cx - 6, cy)
+
+    # Sensor IC in center
+    if ic:
+        positions[ic] = Position(cx, cy)
+
+    # Decoupling cap adjacent to IC
+    if caps:
+        positions[caps[0]] = Position(cx, cy - ic_size[1] / 2 - 2, 90)
+
+    # I2C pull-ups to the right of IC, close to SCL/SDA pins
+    for i, ref in enumerate(resistors):
+        positions[ref] = Position(
+            cx + ic_size[0] / 2 + 3,
+            cy - 2 + i * 4,
+        )
 
     return _finalize(positions)
 

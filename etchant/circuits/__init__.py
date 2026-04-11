@@ -13,6 +13,8 @@ from etchant.circuits.generative_boost import GenerativeBoostConverter
 from etchant.circuits.generative_buck import GenerativeBuckConverter
 from etchant.circuits.generative_ldo import GenerativeLDORegulator
 from etchant.circuits.ldo_regulator import AMS1117LDORegulator
+from etchant.circuits.led_driver import LEDDriverCircuit
+from etchant.circuits.sensor_breakout import I2CSensorBreakout
 
 _REGISTRY: dict[str, type[Any]] = {}
 
@@ -41,5 +43,7 @@ def list_topologies() -> tuple[str, ...]:
 register_generator("buck_converter", GenerativeBuckConverter)
 register_generator("boost_converter", GenerativeBoostConverter)
 register_generator("ldo_regulator", GenerativeLDORegulator)
+register_generator("led_driver", LEDDriverCircuit)
+register_generator("sensor_breakout", I2CSensorBreakout)
 register_generator("buck_converter_lm2596", LM2596BuckConverter)
 register_generator("ldo_regulator_ams1117", AMS1117LDORegulator)
