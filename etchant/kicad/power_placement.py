@@ -117,9 +117,12 @@ def _place_buck(design: DesignResult) -> tuple[dict[str, Position], float, float
         lx = cx + ic_to_ind if inductor else cx + 6
         positions[c_out] = Position(lx + ind_to_cout, cy - 1, 90)
 
-    # Feedback resistors: below IC, near FB pin (4.5mm spacing for 0805 courtyards)
+    # Feedback resistors: below the tallest component in the row (IC or
+    # inductor — whichever sticks further down) so resistor courtyards
+    # don't overlap the inductor's courtyard.
     res_size = _get_footprint_size(design, resistors[0] if resistors else None)
-    fb_y = cy + ic_size[1] / 2 + res_size[1] / 2 + 2.0
+    row_half_height = max(ic_size[1], ind_size[1]) / 2
+    fb_y = cy + row_half_height + res_size[1] / 2 + _MIN_CLEARANCE + 1.0
     res_spacing = max(4.5, res_size[0] + 1.5)
     for i, ref in enumerate(resistors):
         positions[ref] = Position(cx - 1 + i * res_spacing, fb_y)
@@ -382,13 +385,26 @@ def _place_grid(design: DesignResult) -> tuple[dict[str, Position], float, float
 
 
 def _get_footprint_size(design: DesignResult, ref: str | None) -> tuple[float, float]:
-    """Estimate footprint width/height in mm from the footprint name."""
+    """Return real footprint bounding-box dims (inc. courtyard) or an estimate.
+
+    Prefers pcbnew's actual dimensions via footprint_query so placements
+    include the real courtyard extents — the estimated _FOOTPRINT_SIZES
+    values are only used as a fallback when pcbnew isn't available or
+    can't load the library.
+    """
     if ref is None:
         return (3.0, 3.0)
 
     comp = next((c for c in design.components if c.reference == ref), None)
     if comp is None:
         return (3.0, 3.0)
+
+    # Real footprint dims from pcbnew include silkscreen + courtyard bleed,
+    # which is what we want for spacing to avoid courtyards_overlap DRC errors.
+    from etchant.kicad.footprint_query import get_footprint_dimensions
+    info = get_footprint_dimensions(comp.footprint)
+    if info.width_mm > 0 and info.height_mm > 0:
+        return (info.width_mm, info.height_mm)
 
     fp = comp.footprint
     for pattern, size in _FOOTPRINT_SIZES.items():

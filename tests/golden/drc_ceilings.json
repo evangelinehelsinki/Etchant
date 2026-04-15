@@ -4,14 +4,14 @@
   "_baseline_context": "After fix commit 6dde53f (JLCPCB rules + zone fill). Starting point for the DRC ratchet.",
   "topologies": {
     "buck_12v_to_5v": {
-      "errors": 2,
-      "warnings": 6,
+      "errors": 0,
+      "warnings": 2,
       "unconnected_pads": 0,
       "notes": "2 courtyards_overlap on LM2596+L1+R2. Silk warnings: 4 silk_over_copper, 1 silk_overlap, 1 track_dangling."
     },
     "ldo_5v_to_3v3": {
-      "errors": 2,
-      "warnings": 1,
+      "errors": 0,
+      "warnings": 0,
       "unconnected_pads": 0,
       "notes": "2 courtyards_overlap from tight AMS1117 + cap spacing. 1 track_dangling warning from Freerouting."
     },
