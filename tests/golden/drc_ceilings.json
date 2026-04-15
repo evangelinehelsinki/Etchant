@@ -1,31 +1,31 @@
 {
-  "_comment": "Per-topology DRC violation ceilings. 'errors' counts categories that rule_severities marks as errors (clearance, courtyards_overlap, drill_out_of_range, shorting_items, solder_mask_bridge, unconnected_items, etc.). 'warnings' counts the rest (silk_*, track_dangling, via_dangling). 'unconnected_pads' is the separate kicad-cli count. Lower as fixes land \u2014 never raise without a written reason.",
+  "_comment": "Per-topology DRC violation ceilings. 'errors' counts categories that rule_severities marks as errors (clearance, courtyards_overlap, drill_out_of_range, shorting_items, solder_mask_bridge, unconnected_items, etc.). 'warnings' counts the rest (silk_* mostly). track_dangling and via_dangling are ignored because Freerouting produces them nondeterministically. Lower as fixes land — never raise without a written reason.",
   "_baseline_date": "2026-04-14",
-  "_baseline_context": "After fix commit 6dde53f (JLCPCB rules + zone fill). Starting point for the DRC ratchet.",
+  "_baseline_context": "Post-fix state after commits 6dde53f + 12a7f60 + 57d33b3. All four demo boards are 0-error; only silk-layer aesthetic warnings remain.",
   "topologies": {
     "buck_12v_to_5v": {
       "errors": 0,
-      "warnings": 2,
+      "warnings": 1,
       "unconnected_pads": 0,
-      "notes": "2 courtyards_overlap on LM2596+L1+R2. Silk warnings: 4 silk_over_copper, 1 silk_overlap, 1 track_dangling."
+      "notes": "Clean on errors. 1 silk_overlap warning: R1/R2 reference text touching. Aesthetic, not blocking."
     },
     "ldo_5v_to_3v3": {
       "errors": 0,
       "warnings": 0,
       "unconnected_pads": 0,
-      "notes": "2 courtyards_overlap from tight AMS1117 + cap spacing. 1 track_dangling warning from Freerouting."
+      "notes": "Fully DRC-clean. Maintain as zero-tolerance baseline."
     },
     "esp32c3_breakout": {
       "errors": 0,
       "warnings": 2,
       "unconnected_pads": 0,
-      "notes": "1 courtyards_overlap, 2 shorting_items, 2 solder_mask_bridge \u2014 all from C3 cap overlapping U2 LDO pads. 1 unconnected pad. Silk warnings: 5 silk_over_copper, 2 silk_overlap, 2 silk_edge_clearance."
+      "notes": "Clean on errors. 2 silk_edge_clearance warnings: U1 module silkscreen runs past the board edge. Aesthetic, not blocking — fix by trimming module silk or growing the board margin."
     },
     "led_5v_20ma": {
       "errors": 0,
       "warnings": 0,
       "unconnected_pads": 0,
-      "notes": "DRC-clean baseline. Any regression here is a real problem."
+      "notes": "Fully DRC-clean. Maintain as zero-tolerance baseline."
     }
   }
 }
