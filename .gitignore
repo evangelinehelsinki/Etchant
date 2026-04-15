@@ -62,7 +62,17 @@ tools/freerouting.json
 # SKiDL artifacts
 *.erc
 *.log
-skidl_REPL_sklib.py
+*_sklib.py
+
+# DRC reports (generated; live under output/demo/ or /tmp/)
+*-drc.rpt
+*.drc.rpt
+
+# pcbnew core dumps
+core.[0-9]*
+
+# Planning / chat log dumps not checked into git
+markdown/
 
 # OS
 .DS_Store
