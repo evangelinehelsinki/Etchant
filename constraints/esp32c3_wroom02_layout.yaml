@@ -78,11 +78,17 @@ placement_constraints:
     preferred_side: "below-left"
     notes: "Power supply section below-left, away from antenna"
 
-  - component: "LED"
+  - component: "D_led"
     relative_to: "IC"
     max_distance_mm: 15
-    preferred_side: "below"
-    notes: "Status LED below module, away from antenna"
+    preferred_side: "below-right"
+    notes: "Status LED below-right of module (away from LDO and antenna)"
+
+  - component: "R_led"
+    relative_to: "D_led"
+    max_distance_mm: 5
+    preferred_side: "right"
+    notes: "LED current-limit resistor right of status LED"
 
 routing_rules:
   ground_plane: true

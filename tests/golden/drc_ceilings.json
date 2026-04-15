@@ -16,9 +16,9 @@
       "notes": "2 courtyards_overlap from tight AMS1117 + cap spacing. 1 track_dangling warning from Freerouting."
     },
     "esp32c3_breakout": {
-      "errors": 6,
-      "warnings": 8,
-      "unconnected_pads": 1,
+      "errors": 0,
+      "warnings": 2,
+      "unconnected_pads": 0,
       "notes": "1 courtyards_overlap, 2 shorting_items, 2 solder_mask_bridge \u2014 all from C3 cap overlapping U2 LDO pads. 1 unconnected pad. Silk warnings: 5 silk_over_copper, 2 silk_overlap, 2 silk_edge_clearance."
     },
     "led_5v_20ma": {

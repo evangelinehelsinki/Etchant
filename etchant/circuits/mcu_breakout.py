@@ -222,6 +222,16 @@ class ESP32C3Breakout:
                 reason="EN pull-up close to MCU",
             ),
             PlacementConstraint(
+                component_ref="D1", target_ref="U1",
+                max_distance_mm=15.0,
+                reason="Status LED below MCU, away from antenna",
+            ),
+            PlacementConstraint(
+                component_ref="R2", target_ref="D1",
+                max_distance_mm=5.0,
+                reason="LED current-limit resistor adjacent to LED",
+            ),
+            PlacementConstraint(
                 component_ref="J1", target_ref=None,
                 max_distance_mm=20.0,
                 reason="Programming header at board edge",

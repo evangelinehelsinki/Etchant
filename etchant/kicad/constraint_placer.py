@@ -60,6 +60,13 @@ def constraint_place(
         dims = fp_dims[primary_ic]
         placed[primary_ic] = PlacedComponent(0, 0, 0, dims.width_mm, dims.height_mm)
 
+    # The antenna keep-out zone is a property of the primary (antenna-bearing)
+    # IC, not of every component that happens to be a placement target. Stash
+    # the primary IC ref for the keepout checks to use instead of the
+    # placement target — otherwise we'd treat e.g. a diode as having its own
+    # antenna zone and reject placements nearby.
+    antenna_ic_ref = primary_ic
+
     # Step 2: Place secondary ICs using YAML preferred_side
     for comp in design.components:
         if comp.category == ComponentCategory.IC and comp.reference not in placed:
@@ -67,34 +74,59 @@ def constraint_place(
             if primary_ic and primary_ic in placed:
                 _place_on_side(
                     comp.reference, primary_ic, side,
-                    placed, fp_dims, ic_yaml,
+                    placed, fp_dims, ic_yaml, antenna_ic_ref,
                 )
 
-    # Step 3: Place constrained components using preferred_side from YAML
-    sorted_constraints = sorted(
+    # Step 3: Place constrained components using preferred_side from YAML.
+    # Sort so that components whose target is already placed come first,
+    # and components that depend on other constrained components run later.
+    # A simple multi-pass loop handles dependency chains like R2 -> D1 -> U1.
+    remaining = sorted(
         design.placement_constraints,
         key=lambda pc: pc.max_distance_mm,
     )
-    for pc in sorted_constraints:
-        ref = pc.component_ref
-        if ref in placed or ref not in fp_dims:
-            continue
-
-        target = pc.target_ref
-        if target and target in placed:
-            # Check YAML for preferred side
-            side = _get_yaml_side_for_ref(ic_yaml, ref)
-            if side:
-                _place_on_side(ref, target, side, placed, fp_dims, ic_yaml)
+    while remaining:
+        progress = False
+        next_round: list = []
+        for pc in remaining:
+            ref = pc.component_ref
+            if ref in placed or ref not in fp_dims:
+                progress = True
+                continue
+            target = pc.target_ref
+            if target and target in placed:
+                side = _get_yaml_side_for_ref(ic_yaml, ref)
+                if side:
+                    _place_on_side(
+                        ref, target, side, placed, fp_dims, ic_yaml,
+                        antenna_ic_ref,
+                    )
+                else:
+                    _place_adjacent(
+                        ref, target, pc.max_distance_mm, placed, fp_dims, ic_yaml,
+                        antenna_ic_ref,
+                    )
+                progress = True
+            elif target is None:
+                # Unanchored constraint (e.g. connectors at board edge) —
+                # handled in step 4, skip here.
+                pass
             else:
-                _place_adjacent(ref, target, pc.max_distance_mm, placed, fp_dims, ic_yaml)
+                # Target not yet placed — defer to next pass.
+                next_round.append(pc)
+        remaining = next_round
+        if not progress:
+            break
 
     # Step 4: Place connectors at edges using YAML preferred_side
     for comp in design.components:
         if comp.category == ComponentCategory.CONNECTOR and comp.reference not in placed:
             side = _get_yaml_side_for_ref(ic_yaml, comp.reference)
             if side and primary_ic in placed:
-                _place_on_side(comp.reference, primary_ic, side, placed, fp_dims, ic_yaml)
+                _place_on_side(
+                    comp.reference, primary_ic, side, placed, fp_dims, ic_yaml,
+                    antenna_ic_ref,
+                )
             else:
                 _place_at_edge(comp.reference, placed, fp_dims, design)
 
@@ -104,7 +136,10 @@ def constraint_place(
         if comp.reference not in placed:
             side = _get_yaml_side_for_ref(ic_yaml, comp.reference)
             if side and primary_ic and primary_ic in placed:
-                _place_on_side(comp.reference, primary_ic, side, placed, fp_dims, ic_yaml)
+                _place_on_side(
+                    comp.reference, primary_ic, side, placed, fp_dims, ic_yaml,
+                    antenna_ic_ref,
+                )
             else:
                 _place_near_neighbor(comp.reference, placed, fp_dims, net_neighbors, ic_yaml)
 
@@ -203,6 +238,7 @@ def _place_on_side(
     placed: dict[str, PlacedComponent],
     fp_dims: dict[str, FootprintInfo],
     ic_yaml: dict[str, Any],
+    antenna_ic_ref: str | None = None,
 ) -> None:
     """Place component on a specific side of the target."""
     target = placed[target_ref]
@@ -229,9 +265,13 @@ def _place_on_side(
 
     cx, cy, rot = side_positions.get(side, side_positions["below"])
 
-    # Check antenna keep-out zone
-    if _in_antenna_keepout(cx, cy, target, ic_yaml):
-        # Shift to below instead
+    # Antenna keep-out is a property of the primary (antenna-bearing) IC,
+    # not whatever we happen to be placing against. If the caller passed
+    # an antenna IC ref and that IC is placed, check its zone; otherwise
+    # skip the check.
+    antenna_ic = placed.get(antenna_ic_ref) if antenna_ic_ref else None
+    if antenna_ic is not None and _in_antenna_keepout(cx, cy, antenna_ic, ic_yaml):
+        # Shift to below the placement target instead.
         cx = target.x
         cy = target.y + target.height / 2 + dims.height_mm / 2 + gap
 
@@ -284,6 +324,7 @@ def _place_adjacent(
     placed: dict[str, PlacedComponent],
     fp_dims: dict[str, FootprintInfo],
     ic_yaml: dict[str, Any],
+    antenna_ic_ref: str | None = None,
 ) -> None:
     """Place a component adjacent to its target, avoiding antenna keep-out."""
     target = placed[target_ref]
@@ -298,11 +339,15 @@ def _place_adjacent(
         (target.x, target.y - target.height / 2 - dims.height_mm / 2 - gap, 90),
     ]
 
+    antenna_ic = placed.get(antenna_ic_ref) if antenna_ic_ref else None
     for cx, cy, rot in candidates:
         w = dims.height_mm if rot == 90 else dims.width_mm
         h = dims.width_mm if rot == 90 else dims.height_mm
         no_overlap = not _overlaps_any(cx, cy, w, h, placed)
-        no_antenna = not _in_antenna_keepout(cx, cy, target, ic_yaml)
+        no_antenna = (
+            antenna_ic is None
+            or not _in_antenna_keepout(cx, cy, antenna_ic, ic_yaml)
+        )
         if no_overlap and no_antenna:
             placed[ref] = PlacedComponent(cx, cy, rot, w, h)
             return
