@@ -117,6 +117,15 @@ class ComponentPlacer:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         board.Save(str(output_path))
         logger.info("Board saved: %s", output_path)
+
+        # Fill zones and patch JLCPCB rules via a reload cycle. Doing the
+        # fill on the in-memory board crashes pcbnew when called before
+        # the initial save — safer to load the saved file fresh.
+        from etchant.kicad.design_rules import apply_jlcpcb_rules, fill_zones_on_disk
+        fill_zones_on_disk(output_path)
+        pro_path = output_path.with_suffix(".kicad_pro")
+        apply_jlcpcb_rules(pro_path)
+
         return output_path
 
     def _assign_nets(self, board: object, design: DesignResult) -> None:

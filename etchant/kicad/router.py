@@ -109,8 +109,18 @@ class FreeroutingRouter:
         if not result:
             raise RuntimeError("Failed to import Specctra SES")
 
+        # Re-fill zones after routing. SES import can add vias that connect
+        # pads to the GND pour — the pour must be re-filled or those pads
+        # show up as unconnected/dangling in DRC.
+        from etchant.kicad.design_rules import apply_jlcpcb_rules, fill_zones
+        fill_zones(board)
+
         board.Save(str(pcb_path))
         logger.info("Board saved with routes: %s", pcb_path)
+
+        # Re-apply JLCPCB rules — the load/save cycle can stomp them.
+        pro_path = pcb_path.with_suffix(".kicad_pro")
+        apply_jlcpcb_rules(pro_path)
 
         # Clean up temp files
         dsn_path.unlink(missing_ok=True)
