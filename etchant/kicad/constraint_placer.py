@@ -540,31 +540,33 @@ def _to_page_coords(
     if not placed:
         return {}, 35.0, 30.0
 
-    all_x = [p.x for p in placed.values()]
-    all_y = [p.y for p in placed.values()]
+    # Compute outer envelope using component outer edges (center ± half-size),
+    # not centers. Center-based sizing overinflates the board because a
+    # component at min_x actually extends half its width further out — so the
+    # board had to grow by margin + half_width on each side. Using outer
+    # edges directly lets margin stay tight against the actual copper.
+    lefts = [p.x - p.width / 2 for p in placed.values()]
+    rights = [p.x + p.width / 2 for p in placed.values()]
+    tops = [p.y - p.height / 2 for p in placed.values()]
+    bottoms = [p.y + p.height / 2 for p in placed.values()]
+    envelope_x = (min(lefts), max(rights))
+    envelope_y = (min(tops), max(bottoms))
+    envelope_w = envelope_x[1] - envelope_x[0]
+    envelope_h = envelope_y[1] - envelope_y[0]
 
-    n = len(placed)
-    if n <= 3:
-        margin = 4.0
-    elif n <= 5:
-        margin = 6.0
-    else:
-        margin = 8.0
+    # 2mm edge margin covers JLCPCB's 0.5mm copper-to-edge minimum plus
+    # room for silk + mechanical routing tolerance. JLCPCB's stated board
+    # min dimension is 10x10mm, so floor at that too.
+    margin = 2.0
+    board_w = max(10.0, envelope_w + 2 * margin)
+    board_h = max(10.0, envelope_h + 2 * margin)
 
-    span_x = max(all_x) - min(all_x)
-    span_y = max(all_y) - min(all_y)
-
-    min_w = 15.0 if n <= 4 else 25.0 if n <= 6 else 30.0
-    min_h = 13.0 if n <= 4 else 20.0 if n <= 6 else 25.0
-    board_w = max(min_w, span_x + 2 * margin)
-    board_h = max(min_h, span_y + 2 * margin)
-
-    center_x = (max(all_x) + min(all_x)) / 2
-    center_y = (max(all_y) + min(all_y)) / 2
+    envelope_center_x = (envelope_x[0] + envelope_x[1]) / 2
+    envelope_center_y = (envelope_y[0] + envelope_y[1]) / 2
     target_x = _PAGE_X + board_w / 2
     target_y = _PAGE_Y + board_h / 2
-    shift_x = target_x - center_x
-    shift_y = target_y - center_y
+    shift_x = target_x - envelope_center_x
+    shift_y = target_y - envelope_center_y
 
     final = {
         ref: (p.x + shift_x, p.y + shift_y, p.rotation)

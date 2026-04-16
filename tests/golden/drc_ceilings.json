@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-topology DRC violation ceilings. 'errors' counts categories that rule_severities marks as errors (clearance, courtyards_overlap, drill_out_of_range, shorting_items, solder_mask_bridge, unconnected_items, etc.). 'warnings' counts the rest (silk_* mostly). track_dangling and via_dangling are ignored because Freerouting produces them nondeterministically. Lower as fixes land — never raise without a written reason.",
+  "_comment": "Per-topology DRC violation ceilings. 'errors' counts categories that rule_severities marks as errors (clearance, courtyards_overlap, drill_out_of_range, shorting_items, solder_mask_bridge, unconnected_items, etc.). 'warnings' counts the rest (silk_* mostly). track_dangling and via_dangling are ignored because Freerouting produces them nondeterministically. Lower as fixes land \u2014 never raise without a written reason.",
   "_baseline_date": "2026-04-14",
   "_baseline_context": "Post-fix state after commits 6dde53f + 12a7f60 + 57d33b3. All four demo boards are 0-error; only silk-layer aesthetic warnings remain.",
   "topologies": {
@@ -17,9 +17,9 @@
     },
     "esp32c3_breakout": {
       "errors": 0,
-      "warnings": 2,
+      "warnings": 0,
       "unconnected_pads": 0,
-      "notes": "Clean on errors. 2 silk_edge_clearance warnings: U1 module silkscreen runs past the board edge. Aesthetic, not blocking — fix by trimming module silk or growing the board margin."
+      "notes": "Fully DRC-clean after the tight-sizing fix cleared the silk_edge_clearance warnings. Maintain as zero-tolerance baseline."
     },
     "led_5v_20ma": {
       "errors": 0,

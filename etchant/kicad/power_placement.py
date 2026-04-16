@@ -132,7 +132,7 @@ def _place_buck(design: DesignResult) -> tuple[dict[str, Position], float, float
         positions[ref] = Position(cx + 2, fb_y + i * 4)
 
     _add_power_connectors(positions, design)
-    return _finalize(positions)
+    return _finalize(positions, design)
 
 
 def _place_ldo(design: DesignResult) -> tuple[dict[str, Position], float, float]:
@@ -175,7 +175,7 @@ def _place_ldo(design: DesignResult) -> tuple[dict[str, Position], float, float]
         )
 
     _add_power_connectors(positions, design)
-    return _finalize(positions)
+    return _finalize(positions, design)
 
 
 def _place_boost(design: DesignResult) -> tuple[dict[str, Position], float, float]:
@@ -215,7 +215,7 @@ def _place_boost(design: DesignResult) -> tuple[dict[str, Position], float, floa
         positions[ref] = Position(cx - 1 + i * 3.5, fb_y)
 
     _add_power_connectors(positions, design)
-    return _finalize(positions)
+    return _finalize(positions, design)
 
 
 def _place_led_driver(design: DesignResult) -> tuple[dict[str, Position], float, float]:
@@ -274,7 +274,7 @@ def _place_led_driver(design: DesignResult) -> tuple[dict[str, Position], float,
         if ref not in positions:
             positions[ref] = Position(cx + step, cy - 3, 90)
 
-    return _finalize(positions)
+    return _finalize(positions, design)
 
 
 def _place_sensor_breakout(
@@ -312,7 +312,7 @@ def _place_sensor_breakout(
             cy - 2 + i * 4,
         )
 
-    return _finalize(positions)
+    return _finalize(positions, design)
 
 
 def _place_mcu_breakout(
@@ -370,7 +370,7 @@ def _place_mcu_breakout(
     if "R2" in comp_map:
         positions["R2"] = Position(cx, cy + 7)
 
-    return _finalize(positions)
+    return _finalize(positions, design)
 
 
 def _place_grid(design: DesignResult) -> tuple[dict[str, Position], float, float]:
@@ -482,41 +482,55 @@ def _get_constraint_distance(
 
 def _finalize(
     positions: dict[str, Position],
-    max_footprint_extent: float = 8.0,
+    design: DesignResult | None = None,
 ) -> tuple[dict[str, Position], float, float]:
-    """Calculate board size accounting for footprint extents, not just centers."""
+    """Size the board from component outer edges, not centers.
+
+    Earlier versions sized via span_between_centers + 2*margin, which
+    overinflated the board because a component at min_x actually extends
+    half its width further out — on top of the margin. Pin headers on
+    breakout boards need to sit AT the physical edge for breadboard use,
+    not 8mm inside it.
+    """
     if not positions:
-        return positions, 35.0, 30.0
+        return positions, 10.0, 10.0
 
-    all_x = [p.x for p in positions.values()]
-    all_y = [p.y for p in positions.values()]
+    # Look up each component's footprint dims and project into the same
+    # rotation frame as its Position (swap w/h when rot=90). Fall back to
+    # a small default if design wasn't threaded in (shouldn't happen in
+    # practice — all call sites pass design now).
+    def half_extent(ref: str, pos: Position) -> tuple[float, float]:
+        if design is None:
+            return 1.5, 1.5
+        w, h = _get_footprint_size(design, ref)
+        if pos.rotation == 90:
+            return h / 2, w / 2
+        return w / 2, h / 2
 
-    # Scale margin with component count — small circuits need less space
-    n = len(positions)
-    if n <= 3:
-        margin = 4.0  # Tiny boards: just edge clearance
-    elif n <= 5:
-        margin = 6.0  # Small boards
-    else:
-        margin = max_footprint_extent + 3.0  # Larger boards need routing space
+    lefts, rights, tops, bottoms = [], [], [], []
+    for ref, pos in positions.items():
+        hw, hh = half_extent(ref, pos)
+        lefts.append(pos.x - hw)
+        rights.append(pos.x + hw)
+        tops.append(pos.y - hh)
+        bottoms.append(pos.y + hh)
 
-    span_x = max(all_x) - min(all_x)
-    span_y = max(all_y) - min(all_y)
+    envelope_x = (min(lefts), max(rights))
+    envelope_y = (min(tops), max(bottoms))
+    envelope_w = envelope_x[1] - envelope_x[0]
+    envelope_h = envelope_y[1] - envelope_y[0]
 
-    # Scale minimums with component count
-    n = len(positions)
-    min_w = 15.0 if n <= 4 else 25.0 if n <= 6 else 30.0
-    min_h = 13.0 if n <= 4 else 20.0 if n <= 6 else 25.0
-    board_w = max(min_w, span_x + 2 * margin)
-    board_h = max(min_h, span_y + 2 * margin)
+    # 2mm edge margin = 0.5mm JLCPCB copper-to-edge + silk + mech tolerance.
+    margin = 2.0
+    board_w = max(10.0, envelope_w + 2 * margin)
+    board_h = max(10.0, envelope_h + 2 * margin)
 
-    # Center components on board
-    center_x = (max(all_x) + min(all_x)) / 2
-    center_y = (max(all_y) + min(all_y)) / 2
+    envelope_center_x = (envelope_x[0] + envelope_x[1]) / 2
+    envelope_center_y = (envelope_y[0] + envelope_y[1]) / 2
     target_x = _PAGE_X + board_w / 2
     target_y = _PAGE_Y + board_h / 2
-    shift_x = target_x - center_x
-    shift_y = target_y - center_y
+    shift_x = target_x - envelope_center_x
+    shift_y = target_y - envelope_center_y
 
     final = {
         ref: Position(p.x + shift_x, p.y + shift_y, p.rotation)
