@@ -118,17 +118,15 @@ def constraint_place(
         if not progress:
             break
 
-    # Step 4: Place connectors at edges using YAML preferred_side
+    # Step 4: Place connectors at board edges. Any YAML preferred_side for
+    # a connector tells us WHICH edge to use — it does NOT mean "adjacent to
+    # the IC on that side" (that's _place_on_side's semantics, wrong for
+    # connectors because pin headers need to sit at the physical board edge
+    # so they can slot into a breadboard or accept wires).
     for comp in design.components:
         if comp.category == ComponentCategory.CONNECTOR and comp.reference not in placed:
             side = _get_yaml_side_for_ref(ic_yaml, comp.reference)
-            if side and primary_ic in placed:
-                _place_on_side(
-                    comp.reference, primary_ic, side, placed, fp_dims, ic_yaml,
-                    antenna_ic_ref,
-                )
-            else:
-                _place_at_edge(comp.reference, placed, fp_dims, design)
+            _place_at_edge(comp.reference, placed, fp_dims, design, side)
 
     # Step 5: Place remaining via net-neighbor proximity
     net_neighbors = _build_net_neighbors(design)
@@ -363,22 +361,86 @@ def _place_at_edge(
     placed: dict[str, PlacedComponent],
     fp_dims: dict[str, FootprintInfo],
     design: DesignResult,
+    side: str | None = None,
 ) -> None:
-    """Place connector at board edge."""
+    """Place connector at the outer edge of already-placed components.
+
+    `side` names which board edge the connector anchors to:
+      left / right / above / below → that edge.
+      below-left, below-right      → bottom edge, offset toward that corner.
+    If side is None, alternate left-then-right based on how many connectors
+    have already landed (stable auto-placement for circuits without YAML).
+
+    The connector is positioned so its body sits just beyond the current
+    envelope of placed parts. _to_page_coords will size the board around
+    it, putting the connector near the physical board edge rather than
+    inside it.
+    """
     dims = fp_dims[ref]
-    all_x = [p.x for p in placed.values()] if placed else [0]
-    min_x = min(all_x)
-    max_x = max(all_x)
+    gap = 1.5
 
-    connector_refs = {
-        c.reference for c in design.components
-        if c.category == ComponentCategory.CONNECTOR
-    }
-    connector_count = sum(1 for r in placed if r in connector_refs)
+    if not placed:
+        placed[ref] = PlacedComponent(0, 0, 0, dims.width_mm, dims.height_mm)
+        return
 
-    cx = min_x - 10 if connector_count == 0 else max_x + 10
-    cy = 0
-    placed[ref] = PlacedComponent(cx, cy, 0, dims.width_mm, dims.height_mm)
+    # Use outer edges (center ± half-extent), not centers, so a big IC's
+    # body isn't mistaken for being "inside" min_x just because its center
+    # happens to be. Placing J1 relative to bare centers put it inside U1.
+    lefts = [p.x - p.width / 2 for p in placed.values()]
+    rights = [p.x + p.width / 2 for p in placed.values()]
+    tops = [p.y - p.height / 2 for p in placed.values()]
+    bottoms = [p.y + p.height / 2 for p in placed.values()]
+    min_x, max_x = min(lefts), max(rights)
+    min_y, max_y = min(tops), max(bottoms)
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
+
+    # Normalize side — treat "above"/"top" and "below"/"bottom" as synonyms.
+    side_norm = (side or "").lower()
+
+    # Horizontal connectors (left/right edges) stay tall, rot=0.
+    # Vertical connectors (top/bottom edges) rotate 90 so they sit along
+    # the edge instead of poking across the board.
+    if side_norm in ("left",):
+        cx = min_x - gap - dims.width_mm / 2
+        cy = center_y
+        rot = 0
+        w, h = dims.width_mm, dims.height_mm
+    elif side_norm in ("right",):
+        cx = max_x + gap + dims.width_mm / 2
+        cy = center_y
+        rot = 0
+        w, h = dims.width_mm, dims.height_mm
+    elif side_norm in ("above", "top"):
+        cx = center_x
+        cy = min_y - gap - dims.width_mm / 2  # rotated → width is along Y
+        rot = 90
+        w, h = dims.height_mm, dims.width_mm
+    elif side_norm in ("below", "bottom", "below-left", "below-right"):
+        cx = center_x
+        if side_norm == "below-left":
+            cx = center_x - (max_x - min_x) / 4
+        elif side_norm == "below-right":
+            cx = center_x + (max_x - min_x) / 4
+        cy = max_y + gap + dims.width_mm / 2
+        rot = 90
+        w, h = dims.height_mm, dims.width_mm
+    else:
+        # Auto-alternate: first connector left, next right, next left, ...
+        connector_refs = {
+            c.reference for c in design.components
+            if c.category == ComponentCategory.CONNECTOR
+        }
+        connector_count = sum(1 for r in placed if r in connector_refs)
+        if connector_count % 2 == 0:
+            cx = min_x - gap - dims.width_mm / 2
+        else:
+            cx = max_x + gap + dims.width_mm / 2
+        cy = center_y
+        rot = 0
+        w, h = dims.width_mm, dims.height_mm
+
+    placed[ref] = PlacedComponent(cx, cy, rot, w, h)
 
 
 def _build_net_neighbors(design: DesignResult) -> dict[str, list[str]]:
