@@ -131,6 +131,7 @@ def _place_buck(design: DesignResult) -> tuple[dict[str, Position], float, float
     for i, ref in enumerate(diodes):
         positions[ref] = Position(cx + 2, fb_y + i * 4)
 
+    _add_power_connectors(positions, design)
     return _finalize(positions)
 
 
@@ -173,6 +174,7 @@ def _place_ldo(design: DesignResult) -> tuple[dict[str, Position], float, float]
             cy - 1 + i * max(4.5, res_size[1] + 1.5),
         )
 
+    _add_power_connectors(positions, design)
     return _finalize(positions)
 
 
@@ -212,6 +214,7 @@ def _place_boost(design: DesignResult) -> tuple[dict[str, Position], float, floa
     for i, ref in enumerate(resistors):
         positions[ref] = Position(cx - 1 + i * 3.5, fb_y)
 
+    _add_power_connectors(positions, design)
     return _finalize(positions)
 
 
@@ -382,6 +385,54 @@ def _place_grid(design: DesignResult) -> tuple[dict[str, Position], float, float
         )
     n = len(design.components)
     return positions, max(20.0, (cols + 1) * spacing), max(15.0, ((n // cols) + 2) * spacing)
+
+
+def _add_power_connectors(
+    positions: dict[str, Position], design: DesignResult,
+) -> None:
+    """Place input/output connectors at the left/right outer envelope.
+
+    First connector goes to the left edge of placed parts, second to the
+    right edge, subsequent ones alternate. Uses outer-edge extents
+    (center ± half footprint) so a wide inductor or IC body isn't
+    mistaken for being inside the envelope — the first attempt at this
+    used bare centers and landed J1 inside U1's courtyard.
+    """
+    connectors = [
+        c.reference for c in design.components
+        if c.category == ComponentCategory.CONNECTOR
+        and c.reference not in positions
+    ]
+    if not connectors or not positions:
+        return
+
+    def half_extent(ref: str, pos: Position) -> tuple[float, float]:
+        w, h = _get_footprint_size(design, ref)
+        if pos.rotation == 90:
+            return h / 2, w / 2
+        return w / 2, h / 2
+
+    lefts, rights, tops, bottoms = [], [], [], []
+    for ref, pos in positions.items():
+        hw, hh = half_extent(ref, pos)
+        lefts.append(pos.x - hw)
+        rights.append(pos.x + hw)
+        tops.append(pos.y - hh)
+        bottoms.append(pos.y + hh)
+    min_x, max_x = min(lefts), max(rights)
+    center_y = (min(tops) + max(bottoms)) / 2
+
+    gap = 2.0
+    for i, ref in enumerate(connectors):
+        w, _h = _get_footprint_size(design, ref)
+        if i % 2 == 0:
+            x = min_x - gap - w / 2
+            positions[ref] = Position(x, center_y, 0)
+            min_x = x - w / 2
+        else:
+            x = max_x + gap + w / 2
+            positions[ref] = Position(x, center_y, 0)
+            max_x = x + w / 2
 
 
 def _get_footprint_size(design: DesignResult, ref: str | None) -> tuple[float, float]:

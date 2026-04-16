@@ -121,6 +121,30 @@ class AMS1117LDORegulator:
                 description="Output capacitor, ceramic (required for stability)",
                 properties={"voltage_rating": "10V", "type": "ceramic", "dielectric": "X5R"},
             ),
+            ComponentSpec(
+                reference="J1",
+                category=ComponentCategory.CONNECTOR,
+                value="Conn_01x02",
+                footprint=(
+                    "Connector_PinHeader_2.54mm:"
+                    "PinHeader_1x02_P2.54mm_Vertical"
+                ),
+                kicad_library="Connector_Generic",
+                kicad_symbol="Conn_01x02",
+                description="Input header: VIN, GND",
+            ),
+            ComponentSpec(
+                reference="J2",
+                category=ComponentCategory.CONNECTOR,
+                value="Conn_01x02",
+                footprint=(
+                    "Connector_PinHeader_2.54mm:"
+                    "PinHeader_1x02_P2.54mm_Vertical"
+                ),
+                kicad_library="Connector_Generic",
+                kicad_symbol="Conn_01x02",
+                description="Output header: VOUT, GND",
+            ),
         )
 
     def _build_nets(self) -> tuple[NetSpec, ...]:
@@ -128,6 +152,7 @@ class AMS1117LDORegulator:
             NetSpec(
                 name="VIN",
                 connections=(
+                    ("J1", "1"),
                     ("C1", "1"),
                     ("U1", "VI"),
                 ),
@@ -135,9 +160,11 @@ class AMS1117LDORegulator:
             NetSpec(
                 name="GND",
                 connections=(
+                    ("J1", "2"),
                     ("C1", "2"),
                     ("U1", "GND"),
                     ("C2", "2"),
+                    ("J2", "2"),
                 ),
             ),
             NetSpec(
@@ -145,6 +172,7 @@ class AMS1117LDORegulator:
                 connections=(
                     ("U1", "VO"),
                     ("C2", "1"),
+                    ("J2", "1"),
                 ),
             ),
         )
@@ -162,6 +190,18 @@ class AMS1117LDORegulator:
                 target_ref="U1",
                 max_distance_mm=10.0,
                 reason="Output capacitor critical for LDO stability — place as close as possible",
+            ),
+            PlacementConstraint(
+                component_ref="J1",
+                target_ref=None,
+                max_distance_mm=30.0,
+                reason="Input connector at board edge (VIN/GND)",
+            ),
+            PlacementConstraint(
+                component_ref="J2",
+                target_ref=None,
+                max_distance_mm=30.0,
+                reason="Output connector at opposite board edge (VOUT/GND)",
             ),
         )
 

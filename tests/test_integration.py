@@ -77,7 +77,8 @@ class TestFullPipelineLDO:
         )
 
         design = AMS1117LDORegulator().generate(spec)
-        assert len(design.components) == 3
+        # 3 active parts (U1, C1, C2) + J1 (VIN input) + J2 (VOUT output)
+        assert len(design.components) == 5
 
         engine = ConstraintEngine(constraints_dir)
         violations = engine.validate_design(design)
@@ -86,7 +87,9 @@ class TestFullPipelineLDO:
 
         bom = BOMGenerator().generate(design)
         cost = CostBreakdown.from_bom(bom)
-        assert cost.total_setup_fee_usd == 0.0  # All basic parts
+        # 3 basic SMD parts + 2 pin headers (not in JLCPCB basic parts table
+        # → counted as unknown → $3 setup each).
+        assert cost.total_setup_fee_usd == 6.0
 
         path = tmp_path / "ldo.json"
         save_design(design, path)
@@ -132,7 +135,8 @@ class TestTopologyAdvisorToGeneration:
 
         generator = get_generator(rec.topology)
         design = generator.generate(spec)
-        assert len(design.components) == 6
+        # 6 active parts (U1, C1, C2, L1, R1, R2) + J1 (VIN) + J2 (VOUT)
+        assert len(design.components) == 8
 
 
 class TestExecutorIntegration:
@@ -159,7 +163,8 @@ class TestExecutorIntegration:
             "output_current": 2.0,
         })
         assert "error" not in design
-        assert len(design["components"]) == 6
+        # 6 active parts + J1 (VIN) + J2 (VOUT)
+        assert len(design["components"]) == 8
 
         # Step 3: Validate
         validation = executor.execute("validate_design", {
@@ -177,7 +182,8 @@ class TestExecutorIntegration:
             "output_voltage": 5.0,
             "output_current": 2.0,
         })
-        assert cost["bom"]["assembly_setup_fee_usd"] == 12.0
+        # 4 extended SMD parts ($3 each) + 2 pin headers (unknown, $3 each) = $18
+        assert cost["bom"]["assembly_setup_fee_usd"] == 18.0
 
         # Step 5: Export
         export = executor.execute("export_design", {

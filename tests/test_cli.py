@@ -35,7 +35,7 @@ class TestGenerate:
         with runner.isolated_filesystem():
             result = runner.invoke(cli, ["generate", "-o", "./test_output"])
             assert result.exit_code == 0
-            assert "Components: 6" in result.output
+            assert "Components: 8" in result.output
 
     def test_validation_pass(self) -> None:
         runner = CliRunner()
@@ -58,7 +58,7 @@ class TestGenerate:
                 cli, ["generate", "-o", "./out", "-vin", "24", "-vout", "5", "-i", "1.5"]
             )
             assert result.exit_code == 0
-            assert "Components: 6" in result.output
+            assert "Components: 8" in result.output
 
     def test_step_up_fails(self) -> None:
         """Buck converter should reject step-up (Vout > Vin)."""

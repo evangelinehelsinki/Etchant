@@ -6,20 +6,22 @@
     "output_current": 1.0
   },
   "expected": {
-    "component_count": 3,
+    "component_count": 5,
     "components": {
       "U1": {"category": "IC", "value": "AMS1117-3.3"},
       "C1": {"category": "CAPACITOR", "value": "10uF"},
-      "C2": {"category": "CAPACITOR", "value": "22uF"}
+      "C2": {"category": "CAPACITOR", "value": "22uF"},
+      "J1": {"category": "CONNECTOR", "value": "Conn_01x02"},
+      "J2": {"category": "CONNECTOR", "value": "Conn_01x02"}
     },
     "net_names": ["VIN", "GND", "VOUT"],
     "net_count": 3,
     "net_connections": {
-      "VIN": [["C1", "1"], ["U1", "VI"]],
-      "GND": [["C1", "2"], ["U1", "GND"], ["C2", "2"]],
-      "VOUT": [["U1", "VO"], ["C2", "1"]]
+      "VIN": [["J1", "1"], ["C1", "1"], ["U1", "VI"]],
+      "GND": [["J1", "2"], ["C1", "2"], ["U1", "GND"], ["C2", "2"], ["J2", "2"]],
+      "VOUT": [["U1", "VO"], ["C2", "1"], ["J2", "1"]]
     },
-    "placement_constraints_count": 2,
+    "placement_constraints_count": 4,
     "design_notes_min_count": 3
   }
 }

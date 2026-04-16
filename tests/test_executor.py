@@ -32,7 +32,8 @@ class TestGenerateCircuit:
         })
         assert "error" not in result
         assert result["spec"]["topology"] == "buck_converter"
-        assert len(result["components"]) == 6
+        # 6 active parts + J1 (VIN) + J2 (VOUT)
+        assert len(result["components"]) == 8
 
     def test_ldo_regulator(self, executor: ToolExecutor) -> None:
         result = executor.execute("generate_circuit", {
@@ -96,7 +97,8 @@ class TestEstimateCost:
             "output_current": 2.0,
         })
         assert "error" not in result
-        assert result["bom"]["total_parts"] == 6
+        # 6 active parts + 2 connectors
+        assert result["bom"]["total_parts"] == 8
         assert result["bom"]["assembly_setup_fee_usd"] > 0
 
     def test_ldo_cost_is_cheaper(self, executor: ToolExecutor) -> None:
