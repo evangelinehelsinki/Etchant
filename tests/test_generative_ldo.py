@@ -48,7 +48,8 @@ class TestGenerate:
             description="test",
         )
         result = gen.generate(spec)
-        assert len(result.components) == 3  # IC, Cin, Cout (fixed output, no divider)
+        # IC, Cin, Cout + J1 (VIN input), J2 (VOUT output)
+        assert len(result.components) == 5
         assert any("AMS1117-3.3" in c.value for c in result.components)
 
     @patch("etchant.circuits.generative_ldo.GenerativeLDORegulator._query_webench")

@@ -43,7 +43,8 @@ class TestGenerateCircuit:
             "output_current": 0.5,
         })
         assert "error" not in result
-        assert len(result["components"]) == 3
+        # 3 active parts (U1, C1, C2) + J1 (VIN) + J2 (VOUT)
+        assert len(result["components"]) == 5
 
     def test_invalid_topology(self, executor: ToolExecutor) -> None:
         result = executor.execute("generate_circuit", {
@@ -62,7 +63,8 @@ class TestGenerateCircuit:
             "output_current": 1.0,
         })
         assert "error" not in result
-        assert len(result["components"]) == 7
+        # 7 active parts (U1, L1, C1, C2, D1, R1, R2) + J1 (VIN) + J2 (VOUT)
+        assert len(result["components"]) == 9
 
     def test_invalid_spec(self, executor: ToolExecutor) -> None:
         result = executor.execute("generate_circuit", {

@@ -226,20 +226,44 @@ class GenerativeBoostConverter:
                 kicad_symbol="R",
                 description="Feedback bottom resistor",
             ),
+            ComponentSpec(
+                reference="J1",
+                category=ComponentCategory.CONNECTOR,
+                value="Conn_01x02",
+                footprint=(
+                    "Connector_PinHeader_2.54mm:"
+                    "PinHeader_1x02_P2.54mm_Vertical"
+                ),
+                kicad_library="Connector_Generic",
+                kicad_symbol="Conn_01x02",
+                description="Input header: VIN, GND",
+            ),
+            ComponentSpec(
+                reference="J2",
+                category=ComponentCategory.CONNECTOR,
+                value="Conn_01x02",
+                footprint=(
+                    "Connector_PinHeader_2.54mm:"
+                    "PinHeader_1x02_P2.54mm_Vertical"
+                ),
+                kicad_library="Connector_Generic",
+                kicad_symbol="Conn_01x02",
+                description="Output header: VOUT (boosted), GND",
+            ),
         )
 
         nets = (
             NetSpec(name="VIN", connections=(
-                ("C1", "1"), ("L1", "1"),
+                ("J1", "1"), ("C1", "1"), ("L1", "1"),
             )),
             NetSpec(name="SW", connections=(
                 ("L1", "2"), ("U1", "SW"), ("D1", "A"),
             )),
             NetSpec(name="VOUT", connections=(
-                ("D1", "K"), ("C2", "1"), ("R1", "1"),
+                ("D1", "K"), ("C2", "1"), ("R1", "1"), ("J2", "1"),
             )),
             NetSpec(name="GND", connections=(
-                ("C1", "2"), ("U1", "GND"), ("C2", "2"), ("R2", "2"),
+                ("J1", "2"), ("C1", "2"), ("U1", "GND"), ("C2", "2"), ("R2", "2"), ("J2", "2"),
             )),
             NetSpec(name="FB", connections=(
                 ("U1", "FB"), ("R1", "2"), ("R2", "1"),
@@ -258,6 +282,14 @@ class GenerativeBoostConverter:
             PlacementConstraint(
                 component_ref="C2", target_ref=None, max_distance_mm=15.0,
                 reason="Output cap close to load",
+            ),
+            PlacementConstraint(
+                component_ref="J1", target_ref=None, max_distance_mm=30.0,
+                reason="Input connector at board edge (VIN/GND)",
+            ),
+            PlacementConstraint(
+                component_ref="J2", target_ref=None, max_distance_mm=30.0,
+                reason="Output connector at opposite board edge (VOUT/GND)",
             ),
         )
 

@@ -76,7 +76,7 @@ class TestGenerate:
                 cli, ["generate", "-t", "ldo_regulator", "-vin", "5", "-vout", "3.3", "-i", "0.5"]
             )
             assert result.exit_code == 0
-            assert "Components: 3" in result.output
+            assert "Components: 5" in result.output
 
     def test_save_design(self) -> None:
         runner = CliRunner()

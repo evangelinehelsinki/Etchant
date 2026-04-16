@@ -166,12 +166,36 @@ class GenerativeLDORegulator:
                 description="Output capacitor (critical for stability)",
                 properties={"type": "ceramic", "dielectric": "X5R"},
             ),
+            ComponentSpec(
+                reference="J1",
+                category=ComponentCategory.CONNECTOR,
+                value="Conn_01x02",
+                footprint=(
+                    "Connector_PinHeader_2.54mm:"
+                    "PinHeader_1x02_P2.54mm_Vertical"
+                ),
+                kicad_library="Connector_Generic",
+                kicad_symbol="Conn_01x02",
+                description="Input header: VIN, GND",
+            ),
+            ComponentSpec(
+                reference="J2",
+                category=ComponentCategory.CONNECTOR,
+                value="Conn_01x02",
+                footprint=(
+                    "Connector_PinHeader_2.54mm:"
+                    "PinHeader_1x02_P2.54mm_Vertical"
+                ),
+                kicad_library="Connector_Generic",
+                kicad_symbol="Conn_01x02",
+                description="Output header: VOUT, GND",
+            ),
         ]
 
         nets: list[NetSpec] = [
-            NetSpec(name="VIN", connections=(("C1", "1"), ("U1", "VI"))),
-            NetSpec(name="GND", connections=(("C1", "2"), ("U1", "GND"), ("C2", "2"))),
-            NetSpec(name="VOUT", connections=(("U1", "VO"), ("C2", "1"))),
+            NetSpec(name="VIN", connections=(("J1", "1"), ("C1", "1"), ("U1", "VI"))),
+            NetSpec(name="GND", connections=(("J1", "2"), ("C1", "2"), ("U1", "GND"), ("C2", "2"), ("J2", "2"))),
+            NetSpec(name="VOUT", connections=(("U1", "VO"), ("C2", "1"), ("J2", "1"))),
         ]
 
         # Add feedback resistors for adjustable LDOs
@@ -205,14 +229,14 @@ class GenerativeLDORegulator:
             nets.append(
                 NetSpec(name="ADJ", connections=(("U1", "ADJ"), ("R1", "2"), ("R2", "1")))
             )
-            # R1 top connects to VOUT
+            # R1 top connects to VOUT (keep J2 connection too)
             nets[2] = NetSpec(
-                name="VOUT", connections=(("U1", "VO"), ("C2", "1"), ("R1", "1"))
+                name="VOUT", connections=(("U1", "VO"), ("C2", "1"), ("J2", "1"), ("R1", "1"))
             )
-            # R2 bottom connects to GND
+            # R2 bottom connects to GND (keep J1/J2 connections too)
             nets[1] = NetSpec(
                 name="GND",
-                connections=(("C1", "2"), ("U1", "GND"), ("C2", "2"), ("R2", "2")),
+                connections=(("J1", "2"), ("C1", "2"), ("U1", "GND"), ("C2", "2"), ("J2", "2"), ("R2", "2")),
             )
 
         constraints = (
@@ -223,6 +247,14 @@ class GenerativeLDORegulator:
             PlacementConstraint(
                 component_ref="C2", target_ref="U1", max_distance_mm=10.0,
                 reason="Output cap critical for LDO stability",
+            ),
+            PlacementConstraint(
+                component_ref="J1", target_ref=None, max_distance_mm=30.0,
+                reason="Input connector at board edge (VIN/GND)",
+            ),
+            PlacementConstraint(
+                component_ref="J2", target_ref=None, max_distance_mm=30.0,
+                reason="Output connector at opposite board edge (VOUT/GND)",
             ),
         )
 

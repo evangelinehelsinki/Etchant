@@ -45,7 +45,8 @@ class TestGenerate:
             description="test",
         )
         result = gen.generate(spec)
-        assert len(result.components) == 7  # IC, L, Cin, Cout, D, R1, R2
+        # IC, L, Cin, Cout, D, R1, R2 + J1 (VIN), J2 (VOUT)
+        assert len(result.components) == 9
         assert any(c.reference == "D1" for c in result.components)  # Boost has diode
         assert any(c.reference == "L1" for c in result.components)
 
@@ -65,7 +66,8 @@ class TestGenerate:
             description="test",
         )
         result = gen.generate(spec)
-        assert len(result.components) == 7
+        # IC, L, Cin, Cout, D, R1, R2 + J1 (VIN), J2 (VOUT)
+        assert len(result.components) == 9
 
     @patch("etchant.circuits.generative_boost.GenerativeBoostConverter._select_ic")
     def test_all_smd(self, mock_ic: object) -> None:
